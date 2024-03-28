@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "github.com/CaptainIRS/sharded-kvs/internal";
+
+service ShardedKV {
+  // Get the value for a key
+  // As of not, it just returns "Hello, World!"
+  rpc Get(GetRequest) returns (GetResponse) {}
+}
+
+message GetRequest {
+  // The key to get the value for
+  string key = 1;
+}
+
+message GetResponse {
+  // The value for the key
+  string value = 1;
+}
