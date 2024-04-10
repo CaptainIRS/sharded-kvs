@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+service DbOperations {
+    rpc Method1 (Request1) returns (Response1) {}
+    rpc Method2 (Request2) returns (Response2) {}
+    rpc InsertData (RequestInsertData) returns (ResopnseInsertData) {}
+    rpc SelectData (RequestSelectData) returns (ResopnseSelectData) {}
+}
+
+message Request1 {
+    string message = 1;
+}
+
+message Response1 {
+    string message = 1;
+}
+
+message Request2 {
+    string message = 1;
+}
+
+message Response2 {
+    string message = 1;
+}
+
+message RequestInsertData {
+    string key = 1;
+    string value = 2;
+}
+
+message ResopnseInsertData {
+    string message = 1;
+}
+
+message RequestSelectData {
+    string key = 1;
+}
+
+message ResopnseSelectData {
+    string message = 1;
+}
