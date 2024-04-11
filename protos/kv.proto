@@ -4,7 +4,7 @@ package protos;
 
 option go_package = "github.com/CaptainIRS/sharded-kvs/internal";
 
-service ShardedKV {
+service KV {
   // Get the value for a key
   // As of not, it just returns "Hello, World!"
   rpc Get(GetRequest) returns (GetResponse) {}

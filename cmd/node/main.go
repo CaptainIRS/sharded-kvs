@@ -11,11 +11,11 @@ import (
 	"google.golang.org/grpc"
 )
 
-type shardedKVServer struct {
-	pb.UnimplementedShardedKVServer
+type kvServer struct {
+	pb.UnimplementedKVServer
 }
 
-func (s *shardedKVServer) Get(ctx context.Context, in *pb.GetRequest) (*pb.GetResponse, error) {
+func (s *kvServer) Get(ctx context.Context, in *pb.GetRequest) (*pb.GetResponse, error) {
 	return &pb.GetResponse{Value: "Hello, World!"}, nil
 }
 
@@ -31,6 +31,6 @@ func main() {
 		panic(err)
 	}
 	grpcServer := grpc.NewServer()
-	pb.RegisterShardedKVServer(grpcServer, &shardedKVServer{})
+	pb.RegisterKVServer(grpcServer, &kvServer{})
 	grpcServer.Serve(lis)
 }

@@ -1,0 +1,53 @@
+# Create `.Values.replicaGroups` number of StatefulSets, each with `.Values.replicas` replicas and image `nodeImage`
+{{- range $i, $group := until .Values.replicaGroups }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-replica-{{ $i }}-node
+  labels:
+    app: {{ .Release.Name }}
+    group: replica-{{ $i }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  serviceName: {{ .Release.Name }}-replica-{{ $i }}
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      group: replica-{{ $i }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        group: replica-{{ $i }}
+    spec:
+      containers:
+      - name: node
+        image: {{ .Values.nodeImage }}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: REPLICA_GROUP
+          value: "{{ $i }}"
+        - name: REPLICA_INDEX
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-replica-{{ $i }}
+  labels:
+    app: {{ .Release.Name }}
+    group: replica-{{ $i }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: {{ .Release.Name }}
+    group: replica-{{ $i }}
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+{{- end }}

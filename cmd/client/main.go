@@ -20,7 +20,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	client := pb.NewShardedKVClient(conn)
+	client := pb.NewKVClient(conn)
 	resp, err := client.Get(context.Background(), &pb.GetRequest{Key: "hello"})
 	if err != nil {
 		panic(err)
