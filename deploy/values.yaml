@@ -1,4 +1,7 @@
 replicaGroups: 3
 replicas: 1
-nodeImage: "sharded-kvs-node"
+nodeImage: sharded-kvs-node
 clusterDomain: localho.st
+serviceAccount:
+  create: true
+  name: kvs-sa

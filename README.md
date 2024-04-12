@@ -9,7 +9,7 @@
     - [ ] Implement `Delete` endpoint.
 - [ ] TBD
 
-## Prerequisites
+## Prerequisites (development)
 1. Install [Go](https://go.dev/doc/install). Make sure to set the PATH environment variable correctly.
 2. Install the [Protobuf Compiler](https://grpc.io/docs/protoc-installation).
 3. Install the Go Protobuf Compiler plugins:
@@ -17,6 +17,13 @@
     go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
     ```
+
+## Prerequisites (deployment)
+1. Install [Docker](https://docs.docker.com/get-docker/).
+2. Install [Docker Buildx](https://github.com/docker/buildx?tab=readme-ov-file#installing).
+3. Install [MiniKube](https://minikube.sigs.k8s.io/docs/start/).
+4. Install [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl).
+4. Install [Helmfile](https://helmfile.readthedocs.io/en/latest/#installation).
 
 ## Repository Structure
 
@@ -29,11 +36,11 @@
 
 1. Start the key-value store server:
     ```console
-    $ go run cmd/server/main.go
+    $ make install
     ```
 2. Start the key-value store client:
     ```console
-    $ go run cmd/client/main.go
+    $ go run cmd/client/mclientain.go
     ```
 
 ## Generating Go Code from Protobuf Definitions
@@ -41,8 +48,8 @@
 To generate the Go code from the Protobuf definitions, run the following command:
 ```console
 $ protoc --go_out=internal \
-  --go-grpc_out=internal \
-  --go_opt=paths=source_relative \
-  --go-grpc_opt=paths=source_relative \
-  protos/*.proto
+    --go-grpc_out=internal \
+    --go_opt=paths=source_relative \
+    --go-grpc_opt=paths=source_relative \
+    protos/*.proto
 ```

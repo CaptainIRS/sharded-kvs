@@ -6,7 +6,11 @@ COPY go.mod go.sum ./
 
 RUN go mod download
 
-COPY . .
+# Prevent GLIBC compatibility issues
+ENV CGO_ENABLED=0
+
+COPY cmd/ cmd/
+COPY internal/ internal/
 
 RUN go build -o /app cmd/node/main.go
 

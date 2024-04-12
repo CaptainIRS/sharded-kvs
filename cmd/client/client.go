@@ -11,12 +11,13 @@ import (
 )
 
 var (
+	host = flag.String("host", "localhost", "The server host")
 	port = flag.Int("port", 8080, "The server port")
 )
 
 func main() {
 	flag.Parse()
-	conn, err := grpc.Dial(fmt.Sprintf("localhost:%d", *port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", *host, *port), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}

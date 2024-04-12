@@ -1,0 +1,27 @@
+{{- range $i, $group := until (int .Values.replicaGroups) }}
+{{- range $j, $replica := until (int $.Values.replicas) }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: node-{{ $j }}-replica-{{ $i }}-ingress
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/upstream-vhost: "replica-{{ $i }}-node-{{ $j }}.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "replica-{{ $i }}-node-{{ $j }}.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: replica-{{ $i }}
+            port:
+              number: 8080
+---
+{{- end }}
+{{- end }}
