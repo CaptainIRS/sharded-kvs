@@ -36,6 +36,10 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+        command:
+        - /node
+        - --replica-group=$(REPLICA_GROUP)
+        - --replica-index=$(REPLICA_INDEX)
 ---
 {{- end }}
 {{- range $i, $group := until (int .Values.replicaGroups) }}

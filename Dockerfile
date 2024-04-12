@@ -12,11 +12,11 @@ ENV CGO_ENABLED=0
 COPY cmd/ cmd/
 COPY internal/ internal/
 
-RUN go build -o /app cmd/node/main.go
+RUN go build -o /app cmd/node/node.go
 
 
 FROM gcr.io/distroless/base
 
-COPY --from=builder /app/main /main
+COPY --from=builder /app/node /node
 
-CMD ["/main", "-port", "8080"]
+CMD ["/node", "-port", "8080"]

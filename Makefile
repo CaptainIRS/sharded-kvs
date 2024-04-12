@@ -19,7 +19,7 @@ clean: helm_destroy
 	minikube kubectl -- delete namespace ingress-nginx || true
 	rm -rf .deployment
 
-update: helm_upgrade
+sync: helm_sync
 
 start_minikube: .deployment/minikube_start
 
@@ -28,13 +28,18 @@ dashboard:
 
 helm_apply: build_images
 	@echo "$(BLUE)Deploying helm chart...$(CLEAR)"
-	helmfile apply
+	helmfile apply --wait
 	@echo "$(BLUE)Deploying helm chart...done$(CLEAR)"
 
 helm_destroy:
 	@echo "$(BLUE)Deleting helm chart...$(CLEAR)"
-	helmfile destroy
+	helmfile destroy --skip-charts
 	@echo "$(BLUE)Deleting helm chart...done$(CLEAR)"
+
+helm_sync: build_images
+	@echo "$(BLUE)Syncing updates...$(CLEAR)"
+	helmfile sync --wait
+	@echo "$(BLUE)Syncing updates...done$(CLEAR)"
 
 build_images: .deployment/minikube_start
 	@echo "$(BLUE)Building images...$(CLEAR)"
@@ -44,7 +49,7 @@ build_images: .deployment/minikube_start
 .deployment/minikube_start: .deployment/check_deps
 	mkdir -p .deployment
 	@echo "$(BLUE)Starting minikube...$(CLEAR)"
-	minikube start --driver docker --extra-config=apiserver.service-node-port-range=8080-8080 --dns-domain localho.st  --ports 127.0.0.1:8080:8080 --cpus 2 --memory 4096
+	minikube start --driver docker --extra-config=apiserver.service-node-port-range=8080-8081 --dns-domain localho.st  --ports 127.0.0.1:8080:8080 --cpus 2 --memory 4096
 	@echo "$(BLUE)Starting minikube...done$(CLEAR)"
 	touch .deployment/minikube_start
 
@@ -55,7 +60,7 @@ build_images: .deployment/minikube_start
 	kubectl version --client=true
 	docker --version
 	docker buildx version
-	helmfile version
+	helmfile version -o short
 	helmfile init
 	helmfile deps
 	@echo "$(BLUE)Checking dependencies...done$(CLEAR)"

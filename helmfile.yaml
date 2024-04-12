@@ -1,6 +1,8 @@
 repositories:
 - name: ingress-nginx
   url: https://kubernetes.github.io/ingress-nginx
+- name: chaos-mesh
+  url: https://charts.chaos-mesh.org
 
 releases:
 - name: ingress-nginx
@@ -16,12 +18,19 @@ releases:
           http: 8080
       extraArgs:
         v: "3"
+- name: chaos-mesh
+  namespace: chaos-mesh
+  createNamespace: true
+  chart: chaos-mesh/chaos-mesh
+  version: 2.6.3
 - name: kvs
   namespace: kvs
   createNamespace: true
   chart: ./deploy
   values:
   - replicaGroups: 3
-    replicas: 1
+    replicas: 2
     nodeImage: sharded-kvs-node
     clusterDomain: localho.st
+    chaosMesh:
+      enabled: true

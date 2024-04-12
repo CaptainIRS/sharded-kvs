@@ -34,14 +34,18 @@
 
 ## Usage
 
-1. Start the key-value store server:
-    ```console
-    $ make install
-    ```
+1. Start the key-value store server (Kubernetes):
+   ```console
+   $ make install
+   ```
+2. Start the key-value store server (Local):
+   ```console
+   $ go run cmd/node/node.go --replica-group <int> --replica-index <int> --port <int>
+   ```
 2. Start the key-value store client:
-    ```console
-    $ go run cmd/client/mclientain.go
-    ```
+   ```console
+   $ go run cmd/client/client.go --host <str> --port <int>
+   ```
 
 ## Generating Go Code from Protobuf Definitions
 

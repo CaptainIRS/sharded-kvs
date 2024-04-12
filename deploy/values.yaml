@@ -5,3 +5,5 @@ clusterDomain: localho.st
 serviceAccount:
   create: true
   name: kvs-sa
+chaosMesh:
+  enabled: false
