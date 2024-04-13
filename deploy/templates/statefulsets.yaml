@@ -43,6 +43,17 @@ spec:
         - /node
         - -node=$(NODE)
         - -replica=$(REPLICA)
+        volumeMounts:
+        - name: data-node
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: data-node
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Mi
 ---
 {{- end }}
 {{- range $i, $group := until (int .Values.nodes) }}
@@ -65,7 +76,6 @@ spec:
     targetPort: 8080
 ---
 {{- end }}
-
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -107,6 +117,17 @@ spec:
         command:
         - /controller
         - -replica=$(REPLICA)
+        volumeMounts:
+        - name: data-controller
+          mountPath: /data
+  volumeClaimTemplates:
+  - metadata:
+      name: data-controller
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 10Mi
 ---
 apiVersion: v1
 kind: Service

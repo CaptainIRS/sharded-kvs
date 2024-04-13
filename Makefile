@@ -33,7 +33,7 @@ helm_apply: build_images
 	minikube kubectl -- create namespace $(NAMESPACE) || true
 	minikube kubectl -- create namespace ingress-nginx || true
 	minikube kubectl -- create namespace chaos-mesh || true
-	helmfile apply
+	helmfile apply --suppress-secrets
 	@echo "$(BLUE)Deploying helm chart...done$(CLEAR)"
 
 helm_destroy:
