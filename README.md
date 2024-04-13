@@ -34,26 +34,36 @@
 
 ## Usage
 
-1. Start the key-value store server (Kubernetes):
-   ```console
-   $ make install
-   ```
-2. Start the key-value store server (Local):
-   ```console
-   $ go run cmd/node/node.go --replica-group <int> --replica-index <int> --port <int>
-   ```
-2. Start the key-value store client:
-   ```console
-   $ go run cmd/client/client.go --host <str> --port <int>
-   ```
-
-## Generating Go Code from Protobuf Definitions
-
-To generate the Go code from the Protobuf definitions, run the following command:
+### Server
+Start the key-value store server (Kubernetes):
 ```console
-$ protoc --go_out=internal \
-    --go-grpc_out=internal \
-    --go_opt=paths=source_relative \
-    --go-grpc_opt=paths=source_relative \
-    protos/*.proto
+$ make deploy
 ```
+
+(OR)
+
+Start the key-value store server (Local):
+```console
+$ go run cmd/node/node.go -port <int> -node <int> -replica <int> -nodes <int> -replicas <int>
+```
+
+### Client
+Start the key-value store client:
+```console
+$ go run cmd/client/client.go -port <int> -host <string>
+```
+
+Example:
+```console
+$ go run cmd/client/client.go -port 8080 -host node-0.kvs.svc.localho.st
+```
+
+## Makefile Targets
+
+Run `make "target"` where `"target"` is one of the following:
+- `deploy`: Deploy the system in Kubernetes.
+- `clean`: Remove the system from Kubernetes.
+- `sync`: Sync any changes in the system to Kubernetes.
+- `dashboard`: Open the Kubernetes dashboard.
+- `proto`: Generate the Go code from the Protobuf definitions.
+- `fmt`: Format the Go code and helm templates before committing.
