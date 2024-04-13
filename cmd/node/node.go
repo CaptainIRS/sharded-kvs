@@ -27,7 +27,7 @@ func (s *kvServer) Get(ctx context.Context, in *pb.GetRequest) (*pb.GetResponse,
 
 func main() {
 	flag.Parse()
-	log.Printf("!! Starting node replica-%d-node-%d on port %d", *replicaGroup, *replicaIndex, *port)
+	log.Printf("Starting node replica-%d-node-%d on port %d", *replicaGroup, *replicaIndex, *port)
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {

@@ -19,6 +19,9 @@ spec:
       labels:
         app: {{ $.Release.Name }}
         group: replica-{{ $i }}
+      annotations:
+        # Trigger rolling update on sync
+        rollme: {{ randAlphaNum 5 | quote }}
     spec:
       terminationGracePeriodSeconds: 0
       setHostnameAsFQDN: true
