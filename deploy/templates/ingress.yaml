@@ -37,8 +37,10 @@ metadata:
     nginx.ingress.kubernetes.io/configuration-snippet: |
       sub_filter '<head>' '<head> <base href="/chaos-mesh/">';
 spec:
+  ingressClassName: nginx
   rules:
-    - http:
+    - host: chaos-dashboard.svc.{{ $.Values.clusterDomain }}
+      http:
         paths:
           - path: /chaos-mesh/?(.*)
             pathType: Prefix

@@ -16,6 +16,7 @@ releases:
         enableHttps: false
         nodePorts:
           http: 8080
+      allowSnippetAnnotations: true
       extraArgs:
         v: "3"
 - name: chaos-mesh
@@ -23,6 +24,12 @@ releases:
   createNamespace: true
   chart: chaos-mesh/chaos-mesh
   version: 2.6.3
+  values:
+  - dashboard:
+      service:
+        type: ClusterIP
+        clusterIP: None
+      securityMode: false
 - name: kvs
   namespace: kvs
   createNamespace: true
