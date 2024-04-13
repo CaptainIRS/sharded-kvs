@@ -9,6 +9,7 @@ require (
 
 require (
 	github.com/buraksezer/consistent v0.10.0 // indirect
+	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	golang.org/x/net v0.20.0 // indirect
 	golang.org/x/sys v0.16.0 // indirect

@@ -9,7 +9,7 @@ RUN go mod download
 # Prevent GLIBC compatibility issues
 ENV CGO_ENABLED=0
 
-COPY cmd/ cmd/
+COPY cmd/controller/controller.go cmd/controller/
 COPY internal/ internal/
 
 RUN go build -o /app cmd/controller/controller.go

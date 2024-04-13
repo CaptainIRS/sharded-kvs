@@ -43,6 +43,8 @@ spec:
         - /node
         - -node=$(NODE)
         - -replica=$(REPLICA)
+        - -nodes={{ $.Values.nodes }}
+        - -replicas={{ $.Values.replicas }}
         volumeMounts:
         - name: data-node
           mountPath: /data
@@ -117,6 +119,8 @@ spec:
         command:
         - /controller
         - -replica=$(REPLICA)
+        - -nodes={{ $.Values.nodes }}
+        - -replicas={{ $.Values.replicas }}
         volumeMounts:
         - name: data-controller
           mountPath: /data

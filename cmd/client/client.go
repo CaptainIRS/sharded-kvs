@@ -22,9 +22,11 @@ func main() {
 		panic(err)
 	}
 	client := pb.NewKVClient(conn)
-	resp, err := client.Get(context.Background(), &pb.GetRequest{Key: "hello"})
-	if err != nil {
-		panic(err)
+	for i := 0; i < 1000; i++ {
+		resp, err := client.Get(context.Background(), &pb.GetRequest{Key: fmt.Sprintf("key%d", i)})
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(resp.Value)
 	}
-	fmt.Println(resp.Value)
 }

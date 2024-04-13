@@ -5,6 +5,8 @@ CLEAR := $(shell tput sgr0)
 NAMESPACE := kvs
 DOCKER_ENV := prod
 
+.PHONY: protos
+
 deploy: helm_apply
 
 fmt: 
@@ -36,6 +38,15 @@ helm_apply: build_images
 	helmfile apply --suppress-secrets
 	@echo "$(BLUE)Deploying helm chart...done$(CLEAR)"
 
+protos:
+	@echo "$(BLUE)Generating protos...$(CLEAR)"
+	protoc --go_out=internal \
+    	--go-grpc_out=internal \
+    	--go_opt=paths=source_relative \
+    	--go-grpc_opt=paths=source_relative \
+    	protos/*.proto
+	@echo "$(BLUE)Generating protos...done$(CLEAR)"
+
 helm_destroy:
 	@echo "$(BLUE)Deleting helm chart...$(CLEAR)"
 	helmfile destroy --skip-charts || true
@@ -54,7 +65,7 @@ build_images: .deployment/minikube_start
 .deployment/minikube_start: .deployment/check_deps
 	mkdir -p .deployment
 	@echo "$(BLUE)Starting minikube...$(CLEAR)"
-	minikube start --driver docker --extra-config=apiserver.service-node-port-range=8080-8080 --dns-domain localho.st  --ports 127.0.0.1:8080:8080 --cpus 2 --memory 4096
+	minikube start --driver docker --extra-config=apiserver.service-node-port-range=8080-8080 --dns-domain localho.st  --ports 127.0.0.1:8080:8080 --cpus 4 --memory 8192
 	@echo "$(BLUE)Starting minikube...done$(CLEAR)"
 	touch .deployment/minikube_start
 
