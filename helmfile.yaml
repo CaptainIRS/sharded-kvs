@@ -35,9 +35,10 @@ releases:
   createNamespace: true
   chart: ./deploy
   values:
-  - replicaGroups: 3
+  - nodes: 3
     replicas: 2
     nodeImage: sharded-kvs-node
+    controllerImage: sharded-kvs-controller
     clusterDomain: localho.st
     chaosMesh:
       enabled: true

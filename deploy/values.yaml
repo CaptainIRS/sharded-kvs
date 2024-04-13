@@ -1,4 +1,4 @@
-replicaGroups: 3
+nodes: 3
 replicas: 1
 nodeImage: sharded-kvs-node
 clusterDomain: localho.st

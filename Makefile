@@ -3,7 +3,7 @@ YELLOW := $(shell tput setaf 3)
 CLEAR := $(shell tput sgr0)
 
 NAMESPACE := kvs
-DOCKER_ENV := dev
+DOCKER_ENV := prod
 
 deploy: helm_apply
 

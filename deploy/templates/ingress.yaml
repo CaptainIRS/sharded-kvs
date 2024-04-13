@@ -1,24 +1,47 @@
-{{- range $i, $group := until (int .Values.replicaGroups) }}
+{{- range $i, $group := until (int .Values.nodes) }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: replica-{{ $i }}-ingress
+  name: node-{{ $i }}-ingress
   namespace: {{ $.Release.Namespace }}
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
-    nginx.ingress.kubernetes.io/upstream-vhost: "replica-{{ $i }}"
+    nginx.ingress.kubernetes.io/upstream-vhost: "node-{{ $i }}"
 spec:
   ingressClassName: nginx
   rules:
-  - host: "replica-{{ $i }}.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}"
+  - host: "node-{{ $i }}.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}"
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: replica-{{ $i }}
+            name: node-{{ $i }}
+            port:
+              number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: controller-ingress
+  namespace: {{ $.Release.Namespace }}
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    nginx.ingress.kubernetes.io/upstream-vhost: "controller"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "controller.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: controller
             port:
               number: 8080
 ---

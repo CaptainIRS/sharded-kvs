@@ -1,24 +1,24 @@
-{{- range $i, $group := until (int .Values.replicaGroups) }}
+{{- range $i, $group := until (int .Values.nodes) }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: replica-{{ $i }}-node
+  name: node-{{ $i }}-replica
   labels:
     app: {{ $.Release.Name }}
-    group: replica-{{ $i }}
+    group: node-{{ $i }}
   namespace: {{ $.Release.Namespace }}
 spec:
-  serviceName: replica-{{ $i }}
+  serviceName: node-{{ $i }}
   replicas: {{ $.Values.replicas }}
   selector:
     matchLabels:
       app: {{ $.Release.Name }}
-      group: replica-{{ $i }}
+      group: node-{{ $i }}
   template:
     metadata:
       labels:
         app: {{ $.Release.Name }}
-        group: replica-{{ $i }}
+        group: node-{{ $i }}
       annotations:
         # Trigger rolling update on sync
         rollme: {{ randAlphaNum 5 | quote }}
@@ -33,31 +33,31 @@ spec:
         ports:
         - containerPort: 8080
         env:
-        - name: REPLICA_GROUP
+        - name: NODE
           value: "{{ $i }}"
-        - name: REPLICA_INDEX
+        - name: REPLICA
           valueFrom:
             fieldRef:
               fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
         command:
         - /node
-        - --replica-group=$(REPLICA_GROUP)
-        - --replica-index=$(REPLICA_INDEX)
+        - -node=$(NODE)
+        - -replica=$(REPLICA)
 ---
 {{- end }}
-{{- range $i, $group := until (int .Values.replicaGroups) }}
+{{- range $i, $group := until (int .Values.nodes) }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: replica-{{ $i }}
+  name: node-{{ $i }}
   labels:
     app: {{ $.Release.Name }}
-    group: replica-{{ $i }}
+    group: node-{{ $i }}
   namespace: {{ $.Release.Namespace }}
 spec:
   selector:
     app: {{ $.Release.Name }}
-    group: replica-{{ $i }}
+    group: node-{{ $i }}
   clusterIP: None
   ports:
   - protocol: TCP
@@ -65,3 +65,64 @@ spec:
     targetPort: 8080
 ---
 {{- end }}
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: controller-replica
+  labels:
+    app: {{ $.Release.Name }}
+    group: controller
+  namespace: {{ $.Release.Namespace }}
+spec:
+  serviceName: controller
+  replicas: {{ $.Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $.Release.Name }}
+      group: controller
+  template:
+    metadata:
+      labels:
+        app: {{ $.Release.Name }}
+        group: controller
+      annotations:
+        # Trigger rolling update on sync
+        rollme: {{ randAlphaNum 5 | quote }}
+    spec:
+      terminationGracePeriodSeconds: 0
+      setHostnameAsFQDN: true
+      serviceAccountName: {{ $.Values.serviceAccount.name }}
+      containers:
+      - name: controller
+        image: {{ $.Values.controllerImage }}
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: REPLICA
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+        command:
+        - /controller
+        - -replica=$(REPLICA)
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: controller
+  labels:
+    app: {{ $.Release.Name }}
+    group: controller
+  namespace: {{ $.Release.Namespace }}
+spec:
+  selector:
+    app: {{ $.Release.Name }}
+    group: controller
+  clusterIP: None
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+---

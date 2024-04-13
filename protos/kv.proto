@@ -6,7 +6,7 @@ option go_package = "github.com/CaptainIRS/sharded-kvs/internal";
 
 service KV {
   // Get the value for a key
-  // As of not, it just returns "Hello, World!"
+  // As of now, it just returns "Hello, World!"
   rpc Get(GetRequest) returns (GetResponse) {}
 }
 
