@@ -4,8 +4,11 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"sharded-kvs/config"
 	"sharded-kvs/db"
 	"sharded-kvs/web"
+
+	"github.com/BurntSushi/toml"
 )
 
 /*
@@ -14,6 +17,7 @@ import (
 var (
 	dbLocation = flag.String("db-location", "", "Path to the Bolt DB")
 	httpAddr   = flag.String("http-addr", "127.0.0.1:8080", "HTTP Host and Port")
+	configFile = flag.String("config-file", "sharding.toml", "Config file for static sharding")
 )
 
 /*
@@ -28,6 +32,13 @@ func parseFlags() {
 
 func main() {
 	parseFlags()
+
+	var c config.Config
+	if _, err := toml.DecodeFile(*configFile, &c); err != nil {
+		log.Fatalf("toml.DecodeFile(%q): %v", *configFile, err)
+	}
+	log.Printf("%#v", &c)
+
 	db, close, err := db.NewDatabase(*dbLocation)
 	if err != nil {
 		log.Fatalf("NewDatabase(%q): %v", *dbLocation, err)

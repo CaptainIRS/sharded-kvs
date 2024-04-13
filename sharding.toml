@@ -1,0 +1,11 @@
+[[shard]]
+name = "CSK"
+idx = 0
+
+[[shard]]
+name = "MI"
+idx = 1
+
+[[shard]]
+name = "RCB"
+idx = 2
