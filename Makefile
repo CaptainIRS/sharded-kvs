@@ -3,6 +3,7 @@ YELLOW := $(shell tput setaf 3)
 CLEAR := $(shell tput sgr0)
 
 NAMESPACE := kvs
+DOCKER_ENV := dev
 
 deploy: helm_apply
 
@@ -47,7 +48,7 @@ helm_sync: build_images
 
 build_images: .deployment/minikube_start
 	@echo "$(BLUE)Building images...$(CLEAR)"
-	./build.sh
+	./build.sh $(DOCKER_ENV)
 	@echo "$(BLUE)Building images...done$(CLEAR)"
 
 .deployment/minikube_start: .deployment/check_deps

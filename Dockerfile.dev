@@ -1,0 +1,16 @@
+FROM golang:1.22 as builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+
+RUN go mod download
+
+RUN echo "#!/bin/sh" > /node
+RUN echo "go run /app/cmd/node/node.go -port 8080 \$1 \$2" >> /node
+RUN chmod +x /node
+
+COPY cmd/ cmd/
+COPY internal/ internal/
+
+CMD ["go", "run", "cmd/node/node.go", "-port", "8080"]
