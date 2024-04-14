@@ -78,24 +78,24 @@ graph LR;
  ingress-->|routing rule|service2[Service<br>LB];
  ingress-->|routing rule|servicec[Service<br>LB];
  subgraph node0[node-0 StatefulSet]
- service0-->pod00[Pod<br><small>node-0-replica-0</small>];
- service0-->pod01[Pod<br><small>node-0-replica-1</small>];
- service0-->pod02[Pod<br><small>node-0-replica-2</small>];
+ service0-->pod00[Pod<br><small>replica-0</small>];
+ service0-->pod01[Pod<br><small>replica-1</small>];
+ service0-->pod02[Pod<br><small>replica-2</small>];
  end
  subgraph node1[node-1 StatefulSet]
- service1-->pod10[Pod<br><small>node-1-replica-0</small>];
- service1-->pod11[Pod<br><small>node-1-replica-1</small>];
- service1-->pod12[Pod<br><small>node-1-replica-2</small>];
+ service1-->pod10[Pod<br><small>replica-0</small>];
+ service1-->pod11[Pod<br><small>replica-1</small>];
+ service1-->pod12[Pod<br><small>replica-2</small>];
  end
  subgraph node2[node-2 StatefulSet]
- service2-->pod20[Pod<br><small>node-2-replica-0</small>];
- service2-->pod21[Pod<br><small>node-2-replica-1</small>];
- service2-->pod22[Pod<br><small>node-2-replica-2</small>];
+ service2-->pod20[Pod<br><small>replica-0</small>];
+ service2-->pod21[Pod<br><small>replica-1</small>];
+ service2-->pod22[Pod<br><small>replica-2</small>];
  end
  subgraph controller[controller StatefulSet]
- servicec-->podc0[Pod<br><small>controller-replica-0</small>];
- servicec-->podc1[Pod<br><small>controller-replica-1</small>];
- servicec-->podc2[Pod<br><small>controller-replica-2</small>];
+ servicec-->podc0[Pod<br><small>replica-0</small>];
+ servicec-->podc1[Pod<br><small>replica-1</small>];
+ servicec-->podc2[Pod<br><small>replica-2</small>];
  end
  classDef plain fill:#ddd,stroke:#fff,stroke-width:4px,color:#000;
  classDef k8s fill:#326ce5,stroke:#fff,stroke-width:4px,color:#fff;
