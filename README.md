@@ -67,3 +67,40 @@ Run `make "target"` where `"target"` is one of the following:
 - `dashboard`: Open the Kubernetes dashboard.
 - `proto`: Generate the Go code from the Protobuf definitions.
 - `fmt`: Format the Go code and helm templates before committing.
+
+## Kubernetes Architecture
+
+```mermaid
+graph LR;
+ client([client]).->ingress[Ingress];
+ ingress-->|routing rule|service0[Service<br>LB];
+ ingress-->|routing rule|service1[Service<br>LB];
+ ingress-->|routing rule|service2[Service<br>LB];
+ ingress-->|routing rule|servicec[Service<br>LB];
+ subgraph node0[node-0 StatefulSet]
+ service0-->pod00[Pod<br><small>node-0-replica-0</small>];
+ service0-->pod01[Pod<br><small>node-0-replica-1</small>];
+ service0-->pod02[Pod<br><small>node-0-replica-2</small>];
+ end
+ subgraph node1[node-1 StatefulSet]
+ service1-->pod10[Pod<br><small>node-1-replica-0</small>];
+ service1-->pod11[Pod<br><small>node-1-replica-1</small>];
+ service1-->pod12[Pod<br><small>node-1-replica-2</small>];
+ end
+ subgraph node2[node-2 StatefulSet]
+ service2-->pod20[Pod<br><small>node-2-replica-0</small>];
+ service2-->pod21[Pod<br><small>node-2-replica-1</small>];
+ service2-->pod22[Pod<br><small>node-2-replica-2</small>];
+ end
+ subgraph controller[controller StatefulSet]
+ servicec-->podc0[Pod<br><small>controller-replica-0</small>];
+ servicec-->podc1[Pod<br><small>controller-replica-1</small>];
+ servicec-->podc2[Pod<br><small>controller-replica-2</small>];
+ end
+ classDef plain fill:#ddd,stroke:#fff,stroke-width:4px,color:#000;
+ classDef k8s fill:#326ce5,stroke:#fff,stroke-width:4px,color:#fff;
+ classDef cluster fill:#fff,stroke:#bbb,stroke-width:2px,color:#326ce5;
+ class ingress,service0,ingress1,service1,ingress2,service2,servicec,pod01,pod02,pod00,pod11,pod12,pod10,pod21,pod22,pod20,podc0,podc1,podc2 k8s;
+ class client plain;
+ class node0,node1,node2 cluster;
+```
