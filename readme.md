@@ -1,5 +1,9 @@
 # Sharded Key - Value Pair Storage
 
+## Pending Tasks :
+- Add mutex while doing file operations
+- update/insert for duplicate key = handle it
+
 ## Functionalities 
 - insert : To insert new key value pair
 - select : Get all data for a particular key
