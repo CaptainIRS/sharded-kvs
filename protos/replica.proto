@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "github.com/CaptainIRS/sharded-kvs/internal";
+
+import "protos/kv.proto";
+
+service ReplicaRPC {
+    rpc Put(PutRequest) returns (PutResponse) {}
+    rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+}

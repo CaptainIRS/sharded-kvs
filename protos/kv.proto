@@ -5,41 +5,28 @@ package protos;
 option go_package = "github.com/CaptainIRS/sharded-kvs/internal";
 
 service KV {
-  // Get the value for a key
-  // As of now, it just returns "Hello, World!"
   rpc Get(GetRequest) returns (GetResponse) {}
   rpc Put(PutRequest) returns (PutResponse) {}
   rpc Delete(DeleteRequest) returns (DeleteResponse) {}
 }
 
 message GetRequest {
-  // The key to get the value for
   string key = 1;
 }
 
 message GetResponse {
-  // The value for the key
   string value = 1;
 }
 
 message PutRequest {
-  // The key to set the value for
   string key = 1;
-  // The value to set
   string value = 2;
 }
 
-message PutResponse {
-  // Temporary message for debugging
-  string message = 1;
-}
+message PutResponse {}
 
 message DeleteRequest {
-  // The key to delete
   string key = 1;
 }
 
-message DeleteResponse {
-  // Temporary message for debugging
-  string message = 1;
-}
+message DeleteResponse {}

@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package protos;
+
+option go_package = "github.com/CaptainIRS/sharded-kvs/internal";
+
+message KVFSMLogEntry {
+    int32 operation = 1;
+    string key = 2;
+    optional string value = 3;
+}
+
+message KVFSMSnapshot {
+    map<string, string> kv_store = 1;
+}

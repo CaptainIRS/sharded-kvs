@@ -1,4 +1,37 @@
 {{- range $i, $group := until (int .Values.nodes) }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-{{ $i }}
+  labels:
+    app: {{ $.Release.Name }}
+    group: node-{{ $i }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  selector:
+    app: {{ $.Release.Name }}
+    group: node-{{ $i }}
+  clusterIP: None
+  ports:
+  - name: kv
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+  - name: noderpc
+    protocol: TCP
+    port: 8081
+    targetPort: 8081
+  - name: raft
+    protocol: TCP
+    port: 8082
+    targetPort: 8082
+  - name: leader
+    protocol: TCP
+    port: 8083
+    targetPort: 8083
+---
+{{- end }}
+{{- range $i, $group := until (int .Values.nodes) }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -23,7 +56,7 @@ spec:
         # Trigger rolling update on sync
         rollme: {{ randAlphaNum 5 | quote }}
     spec:
-      terminationGracePeriodSeconds: 0
+      minReadySeconds: 30
       setHostnameAsFQDN: true
       serviceAccountName: {{ $.Values.serviceAccount.name }}
       containers:
@@ -31,7 +64,12 @@ spec:
         image: {{ $.Values.nodeImage }}
         imagePullPolicy: Never
         ports:
-        - containerPort: 8080
+        - name: kv
+          containerPort: 8080
+        - name: noderpc
+          containerPort: 8081
+        - name: raft
+          containerPort: 8082
         env:
         - name: NODE
           value: "{{ $i }}"
@@ -39,12 +77,20 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+        - name: IP_ADDRESS
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         command:
-        - /node
-        - -node=$(NODE)
-        - -replica=$(REPLICA)
-        - -nodes={{ $.Values.nodes }}
-        - -replicas={{ $.Values.replicas }}
+        - sh
+        - -c
+        - |
+          for i in $(seq 1 30); do
+            echo "Waiting for DNS. Retries: $i"
+            nslookup node-$(NODE)-replica-$(REPLICA).node-$(NODE).{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }} >/dev/null && break
+            sleep 2
+          done
+          /node -node=$(NODE) -replica=$(REPLICA) -nodes={{ $.Values.nodes }} -replicas={{ $.Values.replicas }} -address=$(IP_ADDRESS)
         volumeMounts:
         - name: data-node
           mountPath: /data
@@ -56,26 +102,6 @@ spec:
       resources:
         requests:
           storage: 10Mi
----
-{{- end }}
-{{- range $i, $group := until (int .Values.nodes) }}
-apiVersion: v1
-kind: Service
-metadata:
-  name: node-{{ $i }}
-  labels:
-    app: {{ $.Release.Name }}
-    group: node-{{ $i }}
-  namespace: {{ $.Release.Namespace }}
-spec:
-  selector:
-    app: {{ $.Release.Name }}
-    group: node-{{ $i }}
-  clusterIP: None
-  ports:
-  - protocol: TCP
-    port: 8080
-    targetPort: 8080
 ---
 {{- end }}
 apiVersion: apps/v1
@@ -110,7 +136,14 @@ spec:
         image: {{ $.Values.controllerImage }}
         imagePullPolicy: Never
         ports:
-        - containerPort: 8080
+        - name: kv
+          containerPort: 8080
+        - name: noderpc
+          containerPort: 8081
+        - name: raft
+          containerPort: 8082
+        - name: leader
+          containerPort: 8083
         env:
         - name: REPLICA
           valueFrom:
@@ -147,7 +180,20 @@ spec:
     group: controller
   clusterIP: None
   ports:
-  - protocol: TCP
+  - name: kv
+    protocol: TCP
     port: 8080
     targetPort: 8080
+  - name: noderpc
+    protocol: TCP
+    port: 8081
+    targetPort: 8081
+  - name: raft
+    protocol: TCP
+    port: 8082
+    targetPort: 8082
+  - name: leader
+    protocol: TCP
+    port: 8083
+    targetPort: 8083
 ---

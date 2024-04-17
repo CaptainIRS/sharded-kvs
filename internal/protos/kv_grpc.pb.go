@@ -22,8 +22,6 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type KVClient interface {
-	// Get the value for a key
-	// As of now, it just returns "Hello, World!"
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
@@ -68,8 +66,6 @@ func (c *kVClient) Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.C
 // All implementations must embed UnimplementedKVServer
 // for forward compatibility
 type KVServer interface {
-	// Get the value for a key
-	// As of now, it just returns "Hello, World!"
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Put(context.Context, *PutRequest) (*PutResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)

@@ -34,6 +34,7 @@ var (
 	replica  = flag.Int("replica", 0, "Replica ID")
 	nodes    = flag.Int("nodes", 1, "Number of nodes")
 	replicas = flag.Int("replicas", 1, "Number of replicas")
+	folder   = flag.String("folder", "/data", "Folder to store data")
 	ch       = *&consistent.Consistent{}
 )
 
@@ -44,19 +45,11 @@ func (s *kvServer) Get(ctx context.Context, in *pb.GetRequest) (*pb.GetResponse,
 }
 
 func (s *kvServer) Put(ctx context.Context, in *pb.PutRequest) (*pb.PutResponse, error) {
-	key := in.Key
-	member := ch.LocateKey([]byte(key))
-	return &pb.PutResponse{
-		Message: fmt.Sprintf("Put response from replica %d of controller. Key %s is stored at %s", *replica, key, member),
-	}, nil
+	return &pb.PutResponse{}, nil
 }
 
 func (s *kvServer) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.DeleteResponse, error) {
-	key := in.Key
-	member := ch.LocateKey([]byte(key))
-	return &pb.DeleteResponse{
-		Message: fmt.Sprintf("Delete response from replica %d of controller. Key %s is stored at %s", *replica, key, member),
-	}, nil
+	return &pb.DeleteResponse{}, nil
 }
 
 func main() {
@@ -69,8 +62,8 @@ func main() {
 	}
 
 	cfg := consistent.Config{
-		PartitionCount:    20,
-		ReplicationFactor: *replicas,
+		PartitionCount:    7,
+		ReplicationFactor: 20,
 		Load:              1.25,
 		Hasher:            hasher{},
 	}

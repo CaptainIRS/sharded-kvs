@@ -22,11 +22,28 @@ func main() {
 		panic(err)
 	}
 	client := pb.NewKVClient(conn)
-	for i := 0; i < 1000; i++ {
-		resp, err := client.Get(context.Background(), &pb.GetRequest{Key: fmt.Sprintf("key%d", i)})
-		if err != nil {
-			panic(err)
+	for i := 0; i < 100; i++ {
+		if _, err := client.Put(context.Background(), &pb.PutRequest{Key: fmt.Sprintf("key%d", i), Value: fmt.Sprintf("value%d", i)}); err != nil {
+			fmt.Println(err)
 		}
-		fmt.Println(resp.Value)
+	}
+	for i := 0; i < 100; i++ {
+		if resp, err := client.Get(context.Background(), &pb.GetRequest{Key: fmt.Sprintf("key%d", i)}); err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(resp.Value)
+		}
+	}
+	for i := 0; i < 10; i++ {
+		if _, err := client.Delete(context.Background(), &pb.DeleteRequest{Key: fmt.Sprintf("key%d", i)}); err != nil {
+			fmt.Println(err)
+		}
+	}
+	for i := 0; i < 20; i++ {
+		if resp, err := client.Get(context.Background(), &pb.GetRequest{Key: fmt.Sprintf("key%d", i)}); err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(resp.Value)
+		}
 	}
 }

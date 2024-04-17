@@ -6,16 +6,15 @@ COPY go.mod go.sum ./
 
 RUN go mod download
 
-# Prevent GLIBC compatibility issues
-ENV CGO_ENABLED=0
-
 COPY cmd/node/node.go cmd/node/
 COPY internal/ internal/
 
 RUN go build -o /app cmd/node/node.go
 
 
-FROM gcr.io/distroless/base
+FROM golang:1.22
+
+RUN apt-get update && apt-get install -y dnsutils
 
 COPY --from=builder /app/node /node
 
