@@ -7,15 +7,20 @@ import sys
 import service_pb2
 import service_pb2_grpc
 
+import threading
+
 my_port = 0000
 my_file_db = ""
 ring_hashing_mod = 360
 server_list = {
     360 : "localhost:5051",
-    90 : "localhost:5052",
-    180 : "localhost:5053",
-    270 : "localhost:5054"
+    90 : "localhost:6051",
+    180 : "localhost:7051",
+    270 : "localhost:8051"
 }
+
+# Define a lock for file access
+file_lock = threading.Lock()
 
 # Find in which server key belongs
 def findDestinationServer(key):
@@ -38,12 +43,45 @@ def findDestinationServer(key):
 # Do row search in file to gather all the data matches with input key
 def gather_keys_from_file(file_path, search_input):
     response = ""
-    with open(file_path, 'r') as file:
-        for line in file:
-            key, value = line.strip().split('\t')
-            if key == search_input:
-                response = response + line
+    
+    # Acquire the lock before accessing the file
+    file_lock.acquire()
+    
+    try:
+        with open(file_path, 'r') as file:
+            for line in file:
+                key, value = line.strip().split('\t')
+                if key == search_input:
+                    response = line
+                    break  # Exit the loop once key is found
+    finally:
+        # Always release the lock, even if an exception occurs
+        file_lock.release()
+
     return response
+
+# Do entry in a file and update
+def update_or_insert_data(my_file_db, key, value):
+    with open(my_file_db, 'r+') as file:
+        # Acquire the lock before accessing the file
+        file_lock.acquire()
+        
+        lines = file.readlines()
+        file.seek(0)
+        found = False
+        for line in lines:
+            k, v = line.strip().split('\t')
+            if k == str(key):
+                file.write(str(key) + '\t' + value + '\n')
+                found = True
+            else:
+                file.write(line)
+        if not found:
+            file.write(str(key) + '\t' + value + '\n')
+        file.truncate()
+        
+        # Release the lock after file operations are done
+        file_lock.release()
     
     
 # All RPC methods for db operations
@@ -68,9 +106,10 @@ class DbOperationsServicer(service_pb2_grpc.DbOperationsServicer):
                 return service_pb2.ResopnseInsertData(message="Invalid Request")
             # Request belongs to ownself
             if server_address.split(':')[-1] == my_port:
-                with open(my_file_db, 'a') as file:
-                    line = str(key) + '\t' + value 
-                    file.write(line + '\n')
+                # with open(my_file_db, 'a') as file:
+                #     line = str(key) + '\t' + value 
+                #     file.write(line + '\n')
+                update_or_insert_data(my_file_db,key,value)
                 return service_pb2.ResopnseInsertData(message="Data Inserted Successfully " + "key : " + request.key + " value : " + request.value)
             # Request belongs to some other server make rpc call
             else:
@@ -136,5 +175,16 @@ if __name__ == '__main__':
 
     my_port = args.port 
     my_file_db = str(my_port) + "db.txt"
+
+    # Creation of db file
+    try:
+        # Try to open the file in write mode
+        with open(my_file_db, 'w') as file:
+            # File is created or cleared if it already exists
+            print(f"File '{my_file_db}' created or cleared successfully.")
+    except Exception as e:
+        print(f"Error: {e}")
+
+        
     serve(args.port)
 

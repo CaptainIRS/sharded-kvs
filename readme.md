@@ -24,9 +24,9 @@ python3 -m grpc_tools.protoc --proto_path=. --python_out=. --grpc_python_out=. s
 
 ## Run 4 servers :
 - python3 server.py --port 5051
-- python3 server.py --port 5052
-- python3 server.py --port 5053
-- python3 server.py --port 5054
+- python3 server.py --port 6051
+- python3 server.py --port 7051
+- python3 server.py --port 8051
 
 ## Run client :
 - python3 client.py
