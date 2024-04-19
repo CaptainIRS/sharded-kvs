@@ -10,57 +10,20 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var (
-// host = flag.String("host", "localhost", "The server host")
-// port = flag.Int("port", 8080, "The server port")
-)
-
 func main() {
 	flag.Parse()
-	// conn, err := grpc.Dial(fmt.Sprintf("%s:%d", *host, *port), grpc.WithTransportCredentials(insecure.NewCredentials()))
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// client := pb.NewKVClient(conn)
-	// for i := 0; i < 100; i++ {
-	// 	if _, err := client.Put(context.Background(), &pb.PutRequest{Key: fmt.Sprintf("key%d", i), Value: fmt.Sprintf("value%d", i)}); err != nil {
-	// 		fmt.Println(err)
-	// 	}
-	// }
-	// for i := 0; i < 100; i++ {
-	// 	if resp, err := client.Get(context.Background(), &pb.GetRequest{Key: fmt.Sprintf("key%d", i)}); err != nil {
-	// 		fmt.Println(err)
-	// 	} else {
-	// 		fmt.Println(resp.Value)
-	// 	}
-	// }
-	// for i := 0; i < 10; i++ {
-	// 	if _, err := client.Delete(context.Background(), &pb.DeleteRequest{Key: fmt.Sprintf("key%d", i)}); err != nil {
-	// 		fmt.Println(err)
-	// 	}
-	// }
-	// for i := 0; i < 20; i++ {
-	// 	if resp, err := client.Get(context.Background(), &pb.GetRequest{Key: fmt.Sprintf("key%d", i)}); err != nil {
-	// 		fmt.Println(err)
-	// 	} else {
-	// 		fmt.Println(resp.Value)
-	// 	}
-	// }
 
 	var choice string
 	var hostChoice string
-	var port int
 	fmt.Println("Select cluster to communicate : ")
 	fmt.Println("0. node0")
 	fmt.Println("1. node1")
 	fmt.Println("2. node2")
 	fmt.Scanln(&hostChoice)
 
-	host := "node-" + hostChoice + ".kvs.svc.localho.st"
-	fmt.Println("Enter port no : ")
-	fmt.Scanln(&port)
+	address := "node-" + hostChoice + ".kvs.svc.localho.st:8080"
 
-	conn, err := grpc.Dial(fmt.Sprintf("%s:%d", host, port), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
@@ -81,7 +44,7 @@ func main() {
 			var key string
 			fmt.Print("Enter key to get: ")
 			fmt.Scanln(&key)
-			if resp, err := client.Get(context.Background(), &pb.GetRequest{Key: fmt.Sprintf("key%d", key)}); err != nil {
+			if resp, err := client.Get(context.Background(), &pb.GetRequest{Key: key}); err != nil {
 				fmt.Println(err)
 			} else {
 				fmt.Println(resp.Value)
@@ -93,7 +56,7 @@ func main() {
 			fmt.Scanln(&key)
 			fmt.Print("Enter value to put: ")
 			fmt.Scanln(&value)
-			if _, err := client.Put(context.Background(), &pb.PutRequest{Key: fmt.Sprintf("key%d", key), Value: fmt.Sprintf("value%d", value)}); err != nil {
+			if _, err := client.Put(context.Background(), &pb.PutRequest{Key: key, Value: value}); err != nil {
 				fmt.Println(err)
 			}
 		// Delete
@@ -101,7 +64,7 @@ func main() {
 			var key string
 			fmt.Print("Enter key to delete: ")
 			fmt.Scanln(&key)
-			if _, err := client.Delete(context.Background(), &pb.DeleteRequest{Key: fmt.Sprintf("key%d", key)}); err != nil {
+			if _, err := client.Delete(context.Background(), &pb.DeleteRequest{Key: key}); err != nil {
 				fmt.Println(err)
 			}
 		case "4":
