@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"strconv"
 
 	pb "github.com/CaptainIRS/sharded-kvs/internal/protos"
 	"google.golang.org/grpc"
@@ -34,7 +35,8 @@ func main() {
 		fmt.Println("1. Get")
 		fmt.Println("2. Put")
 		fmt.Println("3. Delete")
-		fmt.Println("4. Quit")
+		fmt.Println("4. Range Query")
+		fmt.Println("5. Quit")
 		fmt.Print("Enter your choice: ")
 		fmt.Scanln(&choice)
 
@@ -67,7 +69,28 @@ func main() {
 			if _, err := client.Delete(context.Background(), &pb.DeleteRequest{Key: key}); err != nil {
 				fmt.Println(err)
 			}
+		// Range Query
 		case "4":
+			var input1, input2 string
+			fmt.Print("Enter the first number: ")
+			fmt.Scanln(&input1)
+			fmt.Print("Enter the second number: ")
+			fmt.Scanln(&input2)
+
+			num1, err1 := strconv.ParseInt(input1, 10, 64)
+			num2, err2 := strconv.ParseInt(input2, 10, 64)
+
+			if err1 != nil || err2 != nil || num1 > num2 {
+				fmt.Println("Error: Both inputs should be numbers and num1 should be lesser than num2")
+				continue
+			}
+
+			if resp, err := client.RangeQuery(context.Background(), &pb.RangeQueryRequest{Key1: input1, Key2: input2}); err != nil {
+				fmt.Println(err)
+			} else {
+				fmt.Println(resp.Value)
+			}
+		case "5":
 			fmt.Println("Quitting...")
 			return
 		default:

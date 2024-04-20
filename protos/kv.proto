@@ -8,6 +8,7 @@ service KV {
   rpc Get(GetRequest) returns (GetResponse) {}
   rpc Put(PutRequest) returns (PutResponse) {}
   rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+  rpc RangeQuery(RangeQueryRequest) returns (RangeQueryResponse) {}
 }
 
 message GetRequest {
@@ -30,3 +31,12 @@ message DeleteRequest {
 }
 
 message DeleteResponse {}
+
+message RangeQueryRequest {
+  string key1 = 1;
+  string key2 = 2;
+}
+
+message RangeQueryResponse {
+  string value = 1;
+}

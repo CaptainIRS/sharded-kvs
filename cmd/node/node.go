@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	pb "github.com/CaptainIRS/sharded-kvs/internal/protos"
@@ -82,6 +83,30 @@ func (s *kvServer) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.Delete
 	nodeclient := nodeclients[member.String()]
 	log.Printf("Forwarding delete request for key %s to %s", key, member)
 	return nodeclient.Delete(ctx, &pb.DeleteRequest{Key: key})
+}
+
+func (s *kvServer) RangeQuery(ctx context.Context, in *pb.RangeQueryRequest) (*pb.RangeQueryResponse, error) {
+	key1 := in.Key1
+	key2 := in.Key2
+
+	key1Int, _ := strconv.ParseInt(key1, 10, 64)
+	key2Int, _ := strconv.ParseInt(key2, 10, 64)
+
+	response := ""
+
+	for i := key1Int; i <= key2Int; i++ {
+		currentKey := strconv.FormatInt(i, 10)
+		member := ch.LocateKey([]byte(currentKey))
+		nodeclient := nodeclients[member.String()]
+		log.Printf("Forwarding get request for key %s to %s", currentKey, member)
+		resp, err := nodeclient.Get(ctx, &pb.GetRequest{Key: currentKey})
+		if err != nil {
+			response = response + "For key : " + currentKey + " " + err.Error() + "\n"
+		}
+		response = response + "For key : " + currentKey + " " + resp.Value + "\n"
+	}
+
+	return &pb.RangeQueryResponse{Value: response}, nil
 }
 
 func (s *nodeRpcServer) Get(ctx context.Context, in *pb.GetRequest) (*pb.GetResponse, error) {
