@@ -105,8 +105,11 @@ func (s *kvServer) RangeQuery(ctx context.Context, in *pb.RangeQueryRequest) (*p
 		resp, err := nodeclient.Get(ctx, &pb.GetRequest{Key: currentKey})
 		if err != nil {
 			response = response + "For key : " + currentKey + " " + err.Error() + "\n"
+		} else if resp == nil {
+
+		} else {
+			response = response + "For key : " + currentKey + " " + resp.Value + "\n"
 		}
-		response = response + "For key : " + currentKey + " " + resp.Value + "\n"
 	}
 
 	return &pb.RangeQueryResponse{Value: response}, nil
