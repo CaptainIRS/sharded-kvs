@@ -89,6 +89,10 @@ func (k *KVStore) Open(dir, ip string, raftPort, nodeId, replicaId int, shouldBo
 	return nil
 }
 
+func (k *KVStore) Close() error {
+	return common.ShutdownRaft(k.raft)
+}
+
 func (k *KVStore) Join(ip string, raftPort, nodeId, replicaId int) error {
 	id := fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", nodeId, replicaId, nodeId, raftPort)
 	address := fmt.Sprintf("%s:%d", ip, raftPort)
@@ -114,6 +118,14 @@ func (k *KVStore) Join(ip string, raftPort, nodeId, replicaId int) error {
 		}
 	}
 	return common.JoinNode(k.raft, id, address)
+}
+
+func (k *KVStore) DemoteVoter(ip string, raftPort, nodeId, replicaId int) error {
+	id := fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", nodeId, replicaId, nodeId, raftPort)
+	if k.raft.State() != raft.Leader {
+		return nil
+	}
+	return k.raft.DemoteVoter(raft.ServerID(id), 0, 0).Error()
 }
 
 func (k *KVStore) Leader() (raft.ServerAddress, raft.ServerID) {

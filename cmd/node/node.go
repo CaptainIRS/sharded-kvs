@@ -7,8 +7,10 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"path"
 	"strconv"
+	"syscall"
 	"time"
 
 	capture "github.com/CaptainIRS/sharded-kvs/internal"
@@ -105,8 +107,6 @@ func (s *kvServer) RangeQuery(ctx context.Context, in *pb.RangeQueryRequest) (*p
 		resp, err := nodeclient.Get(ctx, &pb.GetRequest{Key: currentKey})
 		if err != nil {
 			response = response + "For key : " + currentKey + " " + err.Error() + "\n"
-		} else if resp == nil {
-
 		} else {
 			response = response + "For key : " + currentKey + " " + resp.Value + "\n"
 		}
@@ -192,9 +192,14 @@ func (s *replicaRpcServer) LeaderID(ctx context.Context, in *pb.LeaderIDRequest)
 }
 
 func main() {
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+
 	log.SetFlags(0)
 	flag.Parse()
 	log.Printf("Starting replica %d of node %d on port %d", *replica, *node, *kvport)
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	if _, err := os.Stat(path.Join(*folder, "bolt")); os.IsNotExist(err) {
 		isRestart = false
@@ -202,7 +207,7 @@ func main() {
 		isRestart = true
 	}
 
-	go capture.RunPacketCapture(context.Background(), *address, fmt.Sprintf("%d", *raftport))
+	go capture.RunPacketCapture(ctx, *address, fmt.Sprintf("%d", *raftport))
 
 	members := []consistent.Member{}
 	for n := 0; n < *nodes; n++ {
@@ -285,7 +290,7 @@ func main() {
 		}
 		for !leaderFound {
 			for r := 0; r < *replicas; r++ {
-				resp, err := replicaclients[fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", *node, r, *node, *raftport)].LeaderID(context.Background(), &pb.LeaderIDRequest{})
+				resp, err := replicaclients[fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", *node, r, *node, *raftport)].LeaderID(ctx, &pb.LeaderIDRequest{})
 				if err != nil {
 					log.Printf("Failed to get leader ID from replica-%d. Retrying...", r)
 					time.Sleep(1 * time.Second)
@@ -300,15 +305,25 @@ func main() {
 		}
 
 		leaderClient := replicaclients[string(leaderId)]
-		leaderClient.Join(context.Background(), &pb.JoinRequest{ReplicaId: int32(*replica), Address: *address})
+		leaderClient.Join(ctx, &pb.JoinRequest{ReplicaId: int32(*replica), Address: *address})
 	}()
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *kvport))
-	if err != nil {
-		panic(err)
+	go func() {
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *kvport))
+		if err != nil {
+			panic(err)
+		}
+		log.Printf("Starting key-value server on port %d", *kvport)
+		grpcServer := grpc.NewServer()
+		pb.RegisterKVServer(grpcServer, &kvServer{})
+		grpcServer.Serve(lis)
+	}()
+
+	<-signalCh
+
+	log.Printf("Shutting down")
+	cancel()
+	if err := kvStore.Close(); err != nil {
+		log.Printf("Failed to close KV store: %v", err)
 	}
-	log.Printf("Starting key-value server on port %d", *kvport)
-	grpcServer := grpc.NewServer()
-	pb.RegisterKVServer(grpcServer, &kvServer{})
-	grpcServer.Serve(lis)
 }

@@ -23,7 +23,11 @@
 2. Install [Docker Buildx](https://github.com/docker/buildx?tab=readme-ov-file#installing).
 3. Install [MiniKube](https://minikube.sigs.k8s.io/docs/start/).
 4. Install [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl).
-4. Install [Helmfile](https://helmfile.readthedocs.io/en/latest/#installation).
+5. Install [Helmfile](https://helmfile.readthedocs.io/en/latest/#installation).
+6. Install `stern`:
+    ```bash
+    go install github.com/stern/stern@latest
+    ```
 
 ## Repository Structure
 

@@ -56,7 +56,8 @@ spec:
         # Trigger rolling update on sync
         rollme: {{ randAlphaNum 5 | quote }}
     spec:
-      minReadySeconds: 30
+      minReadySeconds: 60
+      terminationGracePeriodSeconds: 60
       setHostnameAsFQDN: true
       serviceAccountName: {{ $.Values.serviceAccount.name }}
       containers:
@@ -91,6 +92,7 @@ spec:
         - sh
         - -c
         - |
+          #!/bin/bash
           echo "Starting node-$(NODE)-replica-$(REPLICA) with IP $(IP_ADDRESS)"
           for i in $(seq 1 30); do
             echo "Waiting for DNS. Retries: $i"
@@ -98,7 +100,18 @@ spec:
             sleep 2
           done
           setcap cap_net_raw,cap_net_admin+eip /node
-          /node -node=$(NODE) -replica=$(REPLICA) -nodes={{ $.Values.nodes }} -replicas={{ $.Values.replicas }} -address=$(IP_ADDRESS)
+
+          exec /node -node=$(NODE) -replica=$(REPLICA) -nodes={{ $.Values.nodes }} -replicas={{ $.Values.replicas }} -address=$(IP_ADDRESS) &
+          pid=$!
+
+          trap_sigterm() {
+            echo "Received TERM, killing node-$(NODE)-replica-$(REPLICA)"
+            kill -TERM $pid
+          }
+
+          trap trap_sigterm TERM
+
+          wait $pid
         volumeMounts:
         - name: data-node
           mountPath: /data

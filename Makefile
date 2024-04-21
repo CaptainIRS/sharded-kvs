@@ -5,7 +5,7 @@ CLEAR := $(shell tput sgr0)
 NAMESPACE := kvs
 DOCKER_ENV := prod
 
-.PHONY: protos
+.PHONY: protos dnsedit
 
 deploy: helm_apply
 
@@ -46,6 +46,9 @@ protos:
     	--go-grpc_opt=paths=source_relative \
     	protos/*.proto
 	@echo "$(BLUE)Generating protos...done$(CLEAR)"
+
+dnsedit:
+	KUBE_EDITOR="vim" kubectl -n kube-system edit configmaps coredns -o yaml
 
 helm_destroy:
 	@echo "$(BLUE)Deleting helm chart...$(CLEAR)"
