@@ -8,4 +8,3 @@ if [ -z "$DOCKER_ENV" ]; then
 fi
 
 docker buildx build -t sharded-kvs-node -f docker/node/Dockerfile.$1 .
-docker buildx build -t sharded-kvs-controller -f docker/controller/Dockerfile.$1 .

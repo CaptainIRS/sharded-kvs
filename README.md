@@ -80,7 +80,6 @@ graph LR;
  ingress-->|routing rule|service0[Service<br>LB];
  ingress-->|routing rule|service1[Service<br>LB];
  ingress-->|routing rule|service2[Service<br>LB];
- ingress-->|routing rule|servicec[Service<br>LB];
  subgraph node0[node-0 StatefulSet]
  service0-->pod00[Pod<br>replica-0];
  service0-->pod01[Pod<br>replica-1];
@@ -96,15 +95,10 @@ graph LR;
  service2-->pod21[Pod<br>replica-1];
  service2-->pod22[Pod<br>replica-2];
  end
- subgraph controller[controller StatefulSet]
- servicec-->podc0[Pod<br>replica-0];
- servicec-->podc1[Pod<br>replica-1];
- servicec-->podc2[Pod<br>replica-2];
- end
  classDef plain fill:#ddd,stroke:#fff,stroke-width:4px,color:#000;
  classDef k8s fill:#326ce5,stroke:#fff,stroke-width:4px,color:#fff;
  classDef cluster fill:#fff,stroke:#bbb,stroke-width:2px,color:#326ce5;
- class ingress,service0,ingress1,service1,ingress2,service2,servicec,pod01,pod02,pod00,pod11,pod12,pod10,pod21,pod22,pod20,podc0,podc1,podc2 k8s;
+ class ingress,service0,ingress1,service1,ingress2,service2,pod01,pod02,pod00,pod11,pod12,pod10,pod21,pod22,pod20 k8s;
  class client plain;
  class node0,node1,node2 cluster;
 ```

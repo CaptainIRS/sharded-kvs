@@ -38,7 +38,6 @@ releases:
   - nodes: 3
     replicas: 3
     nodeImage: sharded-kvs-node
-    controllerImage: sharded-kvs-controller
     clusterDomain: localho.st
     chaosMesh:
       enabled: true

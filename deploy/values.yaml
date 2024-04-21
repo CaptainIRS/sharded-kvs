@@ -1,7 +1,6 @@
 nodes: 3
 replicas: 1
 nodeImage: sharded-kvs-node
-controllerImage: sharded-kvs-controller
 clusterDomain: localho.st
 serviceAccount:
   create: true
