@@ -36,7 +36,7 @@ releases:
   chart: ./deploy
   values:
   - nodes: 3
-    replicas: 4
+    replicas: 3
     nodeImage: sharded-kvs-node
     controllerImage: sharded-kvs-controller
     clusterDomain: localho.st
