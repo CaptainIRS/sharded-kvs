@@ -25,7 +25,6 @@ type NodeRPCClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
 	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
-	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
 }
 
 type nodeRPCClient struct {
@@ -63,15 +62,6 @@ func (c *nodeRPCClient) Delete(ctx context.Context, in *DeleteRequest, opts ...g
 	return out, nil
 }
 
-func (c *nodeRPCClient) Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error) {
-	out := new(JoinResponse)
-	err := c.cc.Invoke(ctx, "/protos.NodeRPC/Join", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // NodeRPCServer is the server API for NodeRPC service.
 // All implementations must embed UnimplementedNodeRPCServer
 // for forward compatibility
@@ -79,7 +69,6 @@ type NodeRPCServer interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
 	Put(context.Context, *PutRequest) (*PutResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
-	Join(context.Context, *JoinRequest) (*JoinResponse, error)
 	mustEmbedUnimplementedNodeRPCServer()
 }
 
@@ -95,9 +84,6 @@ func (UnimplementedNodeRPCServer) Put(context.Context, *PutRequest) (*PutRespons
 }
 func (UnimplementedNodeRPCServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
-}
-func (UnimplementedNodeRPCServer) Join(context.Context, *JoinRequest) (*JoinResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Join not implemented")
 }
 func (UnimplementedNodeRPCServer) mustEmbedUnimplementedNodeRPCServer() {}
 
@@ -166,24 +152,6 @@ func _NodeRPC_Delete_Handler(srv interface{}, ctx context.Context, dec func(inte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeRPC_Join_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(JoinRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeRPCServer).Join(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/protos.NodeRPC/Join",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeRPCServer).Join(ctx, req.(*JoinRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // NodeRPC_ServiceDesc is the grpc.ServiceDesc for NodeRPC service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -202,10 +170,6 @@ var NodeRPC_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Delete",
 			Handler:    _NodeRPC_Delete_Handler,
-		},
-		{
-			MethodName: "Join",
-			Handler:    _NodeRPC_Join_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

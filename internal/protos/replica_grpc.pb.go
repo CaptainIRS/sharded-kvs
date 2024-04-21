@@ -24,6 +24,8 @@ const _ = grpc.SupportPackageIsVersion7
 type ReplicaRPCClient interface {
 	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
+	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
+	LeaderID(ctx context.Context, in *LeaderIDRequest, opts ...grpc.CallOption) (*LeaderIDResponse, error)
 }
 
 type replicaRPCClient struct {
@@ -52,12 +54,32 @@ func (c *replicaRPCClient) Delete(ctx context.Context, in *DeleteRequest, opts .
 	return out, nil
 }
 
+func (c *replicaRPCClient) Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error) {
+	out := new(JoinResponse)
+	err := c.cc.Invoke(ctx, "/protos.ReplicaRPC/Join", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *replicaRPCClient) LeaderID(ctx context.Context, in *LeaderIDRequest, opts ...grpc.CallOption) (*LeaderIDResponse, error) {
+	out := new(LeaderIDResponse)
+	err := c.cc.Invoke(ctx, "/protos.ReplicaRPC/LeaderID", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ReplicaRPCServer is the server API for ReplicaRPC service.
 // All implementations must embed UnimplementedReplicaRPCServer
 // for forward compatibility
 type ReplicaRPCServer interface {
 	Put(context.Context, *PutRequest) (*PutResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
+	Join(context.Context, *JoinRequest) (*JoinResponse, error)
+	LeaderID(context.Context, *LeaderIDRequest) (*LeaderIDResponse, error)
 	mustEmbedUnimplementedReplicaRPCServer()
 }
 
@@ -70,6 +92,12 @@ func (UnimplementedReplicaRPCServer) Put(context.Context, *PutRequest) (*PutResp
 }
 func (UnimplementedReplicaRPCServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Delete not implemented")
+}
+func (UnimplementedReplicaRPCServer) Join(context.Context, *JoinRequest) (*JoinResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Join not implemented")
+}
+func (UnimplementedReplicaRPCServer) LeaderID(context.Context, *LeaderIDRequest) (*LeaderIDResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LeaderID not implemented")
 }
 func (UnimplementedReplicaRPCServer) mustEmbedUnimplementedReplicaRPCServer() {}
 
@@ -120,6 +148,42 @@ func _ReplicaRPC_Delete_Handler(srv interface{}, ctx context.Context, dec func(i
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ReplicaRPC_Join_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(JoinRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReplicaRPCServer).Join(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/protos.ReplicaRPC/Join",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReplicaRPCServer).Join(ctx, req.(*JoinRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ReplicaRPC_LeaderID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LeaderIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ReplicaRPCServer).LeaderID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/protos.ReplicaRPC/LeaderID",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ReplicaRPCServer).LeaderID(ctx, req.(*LeaderIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ReplicaRPC_ServiceDesc is the grpc.ServiceDesc for ReplicaRPC service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -134,6 +198,14 @@ var ReplicaRPC_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Delete",
 			Handler:    _ReplicaRPC_Delete_Handler,
+		},
+		{
+			MethodName: "Join",
+			Handler:    _ReplicaRPC_Join_Handler,
+		},
+		{
+			MethodName: "LeaderID",
+			Handler:    _ReplicaRPC_LeaderID_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

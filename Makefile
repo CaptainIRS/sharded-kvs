@@ -28,7 +28,7 @@ sync: helm_sync
 start_minikube: .deployment/minikube_start
 
 dashboard:
-	minikube dashboard --url=true
+	minikube dashboard --url=true --port=8989
 
 helm_apply: build_images
 	@echo "$(BLUE)Deploying helm chart...$(CLEAR)"
@@ -65,7 +65,7 @@ build_images: .deployment/minikube_start
 .deployment/minikube_start: .deployment/check_deps
 	mkdir -p .deployment
 	@echo "$(BLUE)Starting minikube...$(CLEAR)"
-	minikube start --driver docker --extra-config=apiserver.service-node-port-range=8080-8080 --dns-domain localho.st  --ports 127.0.0.1:8080:8080 --cpus 4 --memory 8192
+	# minikube start --driver docker --extra-config=apiserver.service-node-port-range=8080-8080 --dns-domain localho.st  --ports 127.0.0.1:8080:8080 --cpus 4 --memory 8192
 	@echo "$(BLUE)Starting minikube...done$(CLEAR)"
 	touch .deployment/minikube_start
 

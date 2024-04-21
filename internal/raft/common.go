@@ -27,7 +27,7 @@ func (s serverAddressProvider) ServerAddr(id raft.ServerID) (raft.ServerAddress,
 
 var raftTimeout = 10 * time.Second
 
-func SetupRaft(dir, id, address string, isLeader bool, fsm raft.FSM) (*raft.Raft, error) {
+func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*raft.Raft, error) {
 
 	log.Printf("Creating Raft store")
 	store, err := raftboltdb.NewBoltStore(path.Join(dir, "bolt"))
@@ -68,6 +68,9 @@ func SetupRaft(dir, id, address string, isLeader bool, fsm raft.FSM) (*raft.Raft
 	raftCfg.Logger = hclog.New(&hclog.LoggerOptions{
 		DisableTime: true,
 	})
+	raftCfg.HeartbeatTimeout = 5 * time.Second
+	raftCfg.ElectionTimeout = 5 * time.Second
+	raftCfg.LeaderLeaseTimeout = 1 * time.Second
 
 	log.Printf("Creating Raft instance")
 	r, err := raft.NewRaft(raftCfg, fsm, store, store, snapshots, transport)
@@ -75,16 +78,18 @@ func SetupRaft(dir, id, address string, isLeader bool, fsm raft.FSM) (*raft.Raft
 		return nil, fmt.Errorf("Could not create raft instance: %s", err)
 	}
 
-	if isLeader {
+	if shouldBootstrap {
 		log.Printf("Bootstrapping Raft cluster")
-		r.BootstrapCluster(raft.Configuration{
+		if err := r.BootstrapCluster(raft.Configuration{
 			Servers: []raft.Server{
 				{
 					ID:      raft.ServerID(id),
 					Address: transport.LocalAddr(),
 				},
 			},
-		})
+		}).Error(); err != nil {
+			return nil, fmt.Errorf("Could not bootstrap cluster: %s", err)
+		}
 	}
 
 	log.Printf("Raft setup complete")
@@ -93,6 +98,9 @@ func SetupRaft(dir, id, address string, isLeader bool, fsm raft.FSM) (*raft.Raft
 }
 
 func JoinNode(r *raft.Raft, id, address string) error {
+	if r.State() != raft.Leader {
+		return nil
+	}
 	err := r.AddVoter(raft.ServerID(id), raft.ServerAddress(address), 0, 0).Error()
 	if err != nil {
 		return fmt.Errorf("Could not add voter: %s", err)

@@ -7,9 +7,11 @@ import (
 	"log"
 	"net"
 	"os"
+	"path"
 	"strconv"
 	"time"
 
+	capture "github.com/CaptainIRS/sharded-kvs/internal"
 	pb "github.com/CaptainIRS/sharded-kvs/internal/protos"
 	kvstore "github.com/CaptainIRS/sharded-kvs/internal/raft/kvstore"
 	"github.com/buraksezer/consistent"
@@ -49,7 +51,7 @@ var (
 	kvport         = flag.Int("port", 8080, "The key-value server port")
 	nodeport       = flag.Int("nodeport", 8081, "The node RPC server port")
 	raftport       = flag.Int("raftport", 8082, "The Raft RPC server port")
-	leaderport     = flag.Int("leaderport", 8083, "The leader RPC server port")
+	replicaport    = flag.Int("replicaport", 8083, "The leader RPC server port")
 	node           = flag.Int("node", 0, "Node ID")
 	replica        = flag.Int("replica", 0, "Replica ID")
 	nodes          = flag.Int("nodes", 1, "Number of nodes")
@@ -59,6 +61,7 @@ var (
 	nodeclients    = make(map[string]pb.NodeRPCClient)
 	replicaclients = make(map[string]pb.ReplicaRPCClient)
 	kvStore        *kvstore.KVStore
+	isRestart      bool
 )
 
 func (s *kvServer) Get(ctx context.Context, in *pb.GetRequest) (*pb.GetResponse, error) {
@@ -150,15 +153,6 @@ func (s *nodeRpcServer) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.D
 	return &pb.DeleteResponse{}, nil
 }
 
-func (s *nodeRpcServer) Join(ctx context.Context, in *pb.JoinRequest) (*pb.JoinResponse, error) {
-	log.Printf("Processing join request from replica-%d at %s", in.ReplicaId, in.Address)
-	if err := kvStore.Join(in.Address, *raftport, *node, int(in.ReplicaId)); err != nil {
-		return nil, err
-	} else {
-		return &pb.JoinResponse{}, nil
-	}
-}
-
 func (s *replicaRpcServer) Put(ctx context.Context, in *pb.PutRequest) (*pb.PutResponse, error) {
 	log.Printf("Received put request for key %s", in.Key)
 	if err := kvStore.Set(in.Key, in.Value); err != nil {
@@ -177,13 +171,35 @@ func (s *replicaRpcServer) Delete(ctx context.Context, in *pb.DeleteRequest) (*p
 	}
 }
 
+func (s *replicaRpcServer) Join(ctx context.Context, in *pb.JoinRequest) (*pb.JoinResponse, error) {
+	log.Printf("Processing join request from replica-%d at %s", in.ReplicaId, in.Address)
+	if err := kvStore.Join(in.Address, *raftport, *node, int(in.ReplicaId)); err != nil {
+		return nil, err
+	} else {
+		return &pb.JoinResponse{}, nil
+	}
+}
+
+func (s *replicaRpcServer) LeaderID(ctx context.Context, in *pb.LeaderIDRequest) (*pb.LeaderIDResponse, error) {
+	_, leaderId := kvStore.Leader()
+	if leaderId == "" {
+		return nil, fmt.Errorf("No leader found")
+	}
+	return &pb.LeaderIDResponse{LeaderId: string(leaderId)}, nil
+}
+
 func main() {
 	log.SetFlags(0)
 	flag.Parse()
 	log.Printf("Starting replica %d of node %d on port %d", *replica, *node, *kvport)
 
-	os.RemoveAll(*folder)
-	os.MkdirAll(*folder, 0755)
+	if _, err := os.Stat(path.Join(*folder, "bolt")); os.IsNotExist(err) {
+		isRestart = false
+	} else {
+		isRestart = true
+	}
+
+	go capture.RunPacketCapture(context.Background(), *address, fmt.Sprintf("%d", *raftport))
 
 	members := []consistent.Member{}
 	for n := 0; n < *nodes; n++ {
@@ -197,6 +213,13 @@ func main() {
 		Hasher:            hasher{},
 	}
 	ch = *consistent.New(members, cfg)
+
+	kvStore = kvstore.NewKVStore()
+	log.Printf("Starting Raft server on port %d", *raftport)
+	err := kvStore.Open(*folder, *address, *raftport, *node, *replica, !isRestart && *replica == 0)
+	if err != nil {
+		panic(err)
+	}
 
 	go func() {
 		for n := 0; n < *nodes; n++ {
@@ -215,22 +238,6 @@ func main() {
 	}()
 
 	go func() {
-		for r := 0; r < *replicas; r++ {
-			for {
-				conn, err := grpc.Dial(fmt.Sprintf("node-%d-replica-%d.node-%d:%d", *node, r, *node, *leaderport), grpc.WithInsecure())
-				if err != nil {
-					log.Printf("Failed to connect to replica-%d. Retrying...", r)
-					time.Sleep(1 * time.Second)
-					continue
-				}
-				log.Printf("Connected to replica-%d", r)
-				replicaclients[fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", *node, r, *node, *raftport)] = pb.NewReplicaRPCClient(conn)
-				break
-			}
-		}
-	}()
-
-	go func() {
 		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *nodeport))
 		if err != nil {
 			panic(err)
@@ -242,37 +249,55 @@ func main() {
 	}()
 
 	go func() {
-		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *leaderport))
+		lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *replicaport))
 		if err != nil {
 			panic(err)
 		}
-		log.Printf("Starting replica server on port %d", *leaderport)
+		log.Printf("Starting replica server on port %d", *replicaport)
 		grpcServer := grpc.NewServer()
 		pb.RegisterReplicaRPCServer(grpcServer, &replicaRpcServer{})
 		grpcServer.Serve(lis)
 	}()
 
-	kvStore = kvstore.NewKVStore()
 	go func() {
-		log.Printf("Starting Raft server on port %d", *raftport)
-		err := kvStore.Open(*folder, *address, *raftport, *node, *replica)
-		if err != nil {
-			panic(err)
-		}
-		if *replica != 0 {
-			leaderRpcAddress := fmt.Sprintf("node-%d-replica-0.node-%d:%d", *node, *node, *nodeport)
-			log.Printf("Creating grpc channel to leader at %s", leaderRpcAddress)
-			conn, err := grpc.Dial(leaderRpcAddress, grpc.WithInsecure())
-			if err != nil {
-				panic(err)
-			}
-			client := pb.NewNodeRPCClient(conn)
-			log.Printf("Joining leader")
-			_, err = client.Join(context.Background(), &pb.JoinRequest{ReplicaId: int32(*replica), Address: *address})
-			if err != nil {
-				panic(err)
+		for r := 0; r < *replicas; r++ {
+			for {
+				conn, err := grpc.Dial(fmt.Sprintf("node-%d-replica-%d.node-%d:%d", *node, r, *node, *replicaport), grpc.WithInsecure())
+				if err != nil {
+					log.Printf("Failed to connect to replica-%d. Retrying...", r)
+					time.Sleep(1 * time.Second)
+					continue
+				}
+				log.Printf("Connected to replica-%d", r)
+				replicaRpcClient := pb.NewReplicaRPCClient(conn)
+				replicaclients[fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", *node, r, *node, *raftport)] = replicaRpcClient
+				break
 			}
 		}
+
+		leaderFound := false
+		leaderId, _ := kvStore.Leader()
+		if leaderId != "" {
+			leaderFound = true
+		}
+		for !leaderFound {
+			for r := 0; r < *replicas; r++ {
+				resp, err := replicaclients[fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", *node, r, *node, *raftport)].LeaderID(context.Background(), &pb.LeaderIDRequest{})
+				if err != nil {
+					log.Printf("Failed to get leader ID from replica-%d. Retrying...", r)
+					time.Sleep(1 * time.Second)
+					continue
+				}
+				if resp.LeaderId != "" {
+					leaderFound = true
+					leaderId = raft.ServerAddress(resp.LeaderId)
+					break
+				}
+			}
+		}
+
+		leaderClient := replicaclients[string(leaderId)]
+		leaderClient.Join(context.Background(), &pb.JoinRequest{ReplicaId: int32(*replica), Address: *address})
 	}()
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *kvport))

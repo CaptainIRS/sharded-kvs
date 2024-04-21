@@ -9,4 +9,20 @@ import "protos/kv.proto";
 service ReplicaRPC {
     rpc Put(PutRequest) returns (PutResponse) {}
     rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+    rpc Join(JoinRequest) returns (JoinResponse) {}
+    rpc LeaderID(LeaderIDRequest) returns (LeaderIDResponse) {}
+}
+
+
+message JoinRequest {
+    int32 replica_id = 1;
+    string address = 2;
+}
+
+message JoinResponse {}
+
+message LeaderIDRequest {}
+
+message LeaderIDResponse {
+    string leader_id = 1;
 }

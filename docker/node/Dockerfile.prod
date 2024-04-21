@@ -2,6 +2,8 @@ FROM golang:1.22 as builder
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y libpcap-dev
+
 COPY go.mod go.sum ./
 
 RUN go mod download
@@ -14,7 +16,7 @@ RUN go build -o /app cmd/node/node.go
 
 FROM golang:1.22
 
-RUN apt-get update && apt-get install -y dnsutils
+RUN apt-get update && apt-get install -y dnsutils libpcap-dev libcap2-bin
 
 COPY --from=builder /app/node /node
 

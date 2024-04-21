@@ -63,6 +63,12 @@ spec:
       - name: node
         image: {{ $.Values.nodeImage }}
         imagePullPolicy: Never
+        securityContext:
+          allowPrivilegeEscalation: true
+          capabilities:
+            add:
+            - NET_RAW
+            - NET_ADMIN
         ports:
         - name: kv
           containerPort: 8080
@@ -85,11 +91,13 @@ spec:
         - sh
         - -c
         - |
+          echo "Starting node-$(NODE)-replica-$(REPLICA) with IP $(IP_ADDRESS)"
           for i in $(seq 1 30); do
             echo "Waiting for DNS. Retries: $i"
             nslookup node-$(NODE)-replica-$(REPLICA).node-$(NODE).{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }} >/dev/null && break
             sleep 2
           done
+          setcap cap_net_raw,cap_net_admin+eip /node
           /node -node=$(NODE) -replica=$(REPLICA) -nodes={{ $.Values.nodes }} -replicas={{ $.Values.replicas }} -address=$(IP_ADDRESS)
         volumeMounts:
         - name: data-node

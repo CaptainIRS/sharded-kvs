@@ -10,12 +10,4 @@ service NodeRPC {
     rpc Get(GetRequest) returns (GetResponse) {}
     rpc Put(PutRequest) returns (PutResponse) {}
     rpc Delete(DeleteRequest) returns (DeleteResponse) {}
-    rpc Join(JoinRequest) returns (JoinResponse) {}
 }
-
-message JoinRequest {
-    int32 replica_id = 1;
-    string address = 2;
-}
-
-message JoinResponse {}
