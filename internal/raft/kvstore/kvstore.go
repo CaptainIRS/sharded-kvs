@@ -128,6 +128,10 @@ func (k *KVStore) DemoteVoter(ip string, raftPort, nodeId, replicaId int) error 
 	return k.raft.DemoteVoter(raft.ServerID(id), 0, 0).Error()
 }
 
+func (k *KVStore) HasLatestLogs() bool {
+	return k.raft.AppliedIndex() == k.raft.LastIndex()
+}
+
 func (k *KVStore) Leader() (raft.ServerAddress, raft.ServerID) {
 	return k.raft.LeaderWithID()
 }

@@ -191,6 +191,15 @@ func (s *replicaRpcServer) LeaderID(ctx context.Context, in *pb.LeaderIDRequest)
 	return &pb.LeaderIDResponse{LeaderId: string(leaderId)}, nil
 }
 
+func (s *replicaRpcServer) DemoteVoter(ctx context.Context, in *pb.DemoteVoterRequest) (*pb.DemoteVoterResponse, error) {
+	log.Printf("Processing demote voter request from replica-%d at %s", in.ReplicaId, in.Address)
+	if err := kvStore.DemoteVoter(in.Address, *raftport, *node, int(in.ReplicaId)); err != nil {
+		return nil, err
+	} else {
+		return &pb.DemoteVoterResponse{}, nil
+	}
+}
+
 func main() {
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
@@ -304,6 +313,9 @@ func main() {
 			}
 		}
 
+		for !kvStore.HasLatestLogs() {
+			time.Sleep(1 * time.Second)
+		}
 		leaderClient := replicaclients[string(leaderId)]
 		leaderClient.Join(ctx, &pb.JoinRequest{ReplicaId: int32(*replica), Address: *address})
 	}()
@@ -322,8 +334,12 @@ func main() {
 	<-signalCh
 
 	log.Printf("Shutting down")
-	cancel()
+	leaderId, _ := kvStore.Leader()
+	leaderClient := replicaclients[string(leaderId)]
 	if err := kvStore.Close(); err != nil {
 		log.Printf("Failed to close KV store: %v", err)
 	}
+	leaderClient.DemoteVoter(ctx, &pb.DemoteVoterRequest{ReplicaId: int32(*replica), Address: *address})
+	time.Sleep(5 * time.Second)
+	cancel()
 }
