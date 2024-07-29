@@ -1,13 +1,15 @@
 # Sharded Key-Value Store
 
-## Roadmap
-- [ ] Getting Started
-  - [x] Simple RPC service to serve as a starting point.
-  - [ ] Implement endpoints for a key-value store in a single node.
-    - [ ] Implement `Get` endpoint.
-    - [ ] Implement `Put` endpoint.
-    - [ ] Implement `Delete` endpoint.
-- [ ] TBD
+## Features
+* **Sharding**: The key-value store is sharded across multiple nodes using [Consistent Hashing with Bounded Loads](https://research.google/blog/consistent-hashing-with-bounded-loads/).
+* **Replication**: The key-value store supports replication across multiple replicas on each node. The number of replicas can be configured (default: 3). It uses the [Raft Consensus Algorithm](https://raft.github.io/).
+* **Load Balancing**: The key-value store uses a round-robin load balancer to distribute the requests across the replicas using the [NGINX Ingress Controller](https://kubernetes.github.io/ingress-nginx/). Leader forwarding is used to forward the requests to the leader replica.
+* **Scalability**: The key-value store can be deployed on Kubernetes with a configurable number of nodes and replicas and can be changed dynamically using the [Helm](https://helm.sh/) values file. (Run `make deploy` to apply the changes after updating the [helmfile.yaml](./helmfile.yaml) file)
+* **Upgradability**: The key-value store can be upgraded without any downtime using the [RollingUpdate](https://kubernetes.io/docs/tutorials/kubernetes-basics/update/update-intro/) strategy in Kubernetes. (Run `make sync` after updating the source code).
+* **Fault Simulation**: The system can simulate network partitions and node failures using [Chaos Mesh](https://chaos-mesh.org/). Visit https://chaos-dashboard.svc.localho.st:8080/chaos-mesh/ to access the Chaos Mesh dashboard and experiment with different fault scenarios.
+* **Tracing**: The system provides logs of traffic among all the nodes logged to the standard output. The logs can be viewed using the `stern` tool. (Run `stern -l group=node-0 -n=kvs -t=short` to view the logs of the node-0 replica group).
+* **Portability**: The system can be run in any platform (Windows, macOS, Linux) with no changes to the codebase since it is built using Go and Kubernetes.
+
 
 ## Prerequisites (development)
 1. Install [Go](https://go.dev/doc/install). Make sure to set the PATH environment variable correctly.
@@ -38,31 +40,7 @@
 
 ## Usage
 
-### Server
-Start the key-value store server (Kubernetes):
-```console
-$ make deploy
-```
-
-(OR)
-
-Start the key-value store server (Local):
-```console
-$ go run cmd/node/node.go -port <int> -node <int> -replica <int> -nodes <int> -replicas <int>
-```
-
-### Client
-Start the key-value store client:
-```console
-$ go run cmd/client/client.go -port <int> -host <string>
-```
-
-Example:
-```console
-$ go run cmd/client/client.go -port 8080 -host node-0.kvs.svc.localho.st
-```
-
-## Makefile Targets
+### Makefile Targets
 
 Run `make "target"` where `"target"` is one of the following:
 - `deploy`: Deploy the system in Kubernetes.
@@ -71,6 +49,29 @@ Run `make "target"` where `"target"` is one of the following:
 - `dashboard`: Open the Kubernetes dashboard.
 - `proto`: Generate the Go code from the Protobuf definitions.
 - `fmt`: Format the Go code and helm templates before committing.
+
+### Viewing Logs/Traces
+
+* To view all logs of the cluster:
+    ```console
+    $ stern -n kvs -t=short
+    ```
+* To view logs of a specific replica group (e.g., node-0):
+    ```console
+    $ stern -l group=node-0 -n kvs -t=short
+    ```
+* To view logs of a specific replica (e.g., node-0-replica-0):
+    ```console
+    $ stern -l node-0-replica-0 -n kvs -t=short
+    ```
+* To remove logs of heartbeat messages add `-e="Sending heartbeat"` to the command:
+    ```console
+    $ stern -n kvs -t=short -e="Sending heartbeat"
+    ```
+
+## System Architecture
+
+![sharded-kvs drawio](https://github.com/user-attachments/assets/f60bd480-27a9-426f-9de5-a199a26da5ed)
 
 ## Kubernetes Architecture
 
