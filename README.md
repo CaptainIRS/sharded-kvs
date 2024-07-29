@@ -36,6 +36,10 @@
 - `cmd/`: Contains the code for CLI binaries that users can use to interact with the key-value store.
 - `internal/`: Contains the core implementation of the key-value store.
   - `internal/protos/`: Contains the generated Go code for the Protobuf messages and services.
+    - `fsm.proto`: Contains the proto definition for the Raft state machine.
+    - `kv.proto`: Contains the proto definition for the key-value store service through which clients can interact with the key-value store.
+    - `node.proto`: Contains the proto definition for the node service through which replica groups can interact with each other (for forwarding request to the node containing the required shard).
+    - `replica.proto`: Contains the proto definition for the replica service through which replicas can interact with each other (for leader forwarding).
 - `protos/`: Contains the Protobuf definitions for the messages and services used in the key-value store.
 
 ## Usage
@@ -43,7 +47,8 @@
 ### Makefile Targets
 
 Run `make "target"` where `"target"` is one of the following:
-- `deploy`: Deploy the system in Kubernetes.
+- `deploy`: Deploy the system (Key-Value Store Server) in Kubernetes.
+- `client`: Run the client.
 - `clean`: Remove the system from Kubernetes.
 - `sync`: Sync any changes in the system to Kubernetes.
 - `dashboard`: Open the Kubernetes dashboard.

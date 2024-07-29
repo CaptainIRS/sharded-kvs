@@ -9,6 +9,9 @@ DOCKER_ENV := prod
 
 deploy: helm_apply
 
+client:
+	go run cmd/client/client.go
+
 fmt: 
 	@echo "$(BLUE)Formatting code...$(CLEAR)"
 	go fmt ./...
