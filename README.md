@@ -1,4 +1,8 @@
-# Sharded Key-Value Store
+<h1 align="center">Sharded Key-Value Store</h1>
+<p align="center">
+    A Model Sharded Key-Value Store Implementation using Go and Kubernetes<br><br>
+    <img width="708" alt="Screenshot 2024-07-29 at 12 07 53 PM" src="https://github.com/user-attachments/assets/5c290093-17d0-4560-97f8-03e629d65f5a">
+</p>
 
 ## Features
 * **Sharding**: The key-value store is sharded across multiple nodes using [Consistent Hashing with Bounded Loads](https://research.google/blog/consistent-hashing-with-bounded-loads/).
@@ -40,6 +44,7 @@
     - `kv.proto`: Contains the proto definition for the key-value store service through which clients can interact with the key-value store.
     - `node.proto`: Contains the proto definition for the node service through which replica groups can interact with each other (for forwarding request to the node containing the required shard).
     - `replica.proto`: Contains the proto definition for the replica service through which replicas can interact with each other (for leader forwarding).
+    - 
 - `protos/`: Contains the Protobuf definitions for the messages and services used in the key-value store.
 
 ## Usage
