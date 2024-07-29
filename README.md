@@ -11,7 +11,7 @@
 * **Scalability**: The key-value store can be deployed on Kubernetes with a configurable number of nodes and replicas and can be changed dynamically using the [Helm](https://helm.sh/) values file. (Run `make deploy` to apply the changes after updating the [helmfile.yaml](./helmfile.yaml) file)
 * **Upgradability**: The key-value store can be upgraded without any downtime using the [RollingUpdate](https://kubernetes.io/docs/tutorials/kubernetes-basics/update/update-intro/) strategy in Kubernetes. (Run `make sync` after updating the source code).
 * **Fault Simulation**: The system can simulate network partitions and node failures using [Chaos Mesh](https://chaos-mesh.org/). Visit https://chaos-dashboard.svc.localho.st:8080/chaos-mesh/ to access the Chaos Mesh dashboard and experiment with different fault scenarios.
-* **Tracing**: The system provides logs of traffic among all the nodes logged to the standard output. The logs can be viewed using the `stern` tool. (Run `stern -l group=node-0 -n=kvs -t=short` to view the logs of the node-0 replica group).
+* **Tracing**: The system provides logs of traffic among all the nodes logged to the standard output by capturing packets using eBPF. The logs can be viewed using the `stern` tool. (Run `stern -l group=node-0 -n=kvs -t=short` to view the logs of the node-0 replica group).
 * **Portability**: The system can be run in any platform (Windows, macOS, Linux) with no changes to the codebase since it is built using Go and Kubernetes.
 
 
@@ -44,7 +44,8 @@
     - `kv.proto`: Contains the proto definition for the key-value store service through which clients can interact with the key-value store.
     - `node.proto`: Contains the proto definition for the node service through which replica groups can interact with each other (for forwarding request to the node containing the required shard).
     - `replica.proto`: Contains the proto definition for the replica service through which replicas can interact with each other (for leader forwarding).
-    - 
+  - `internals/raft`: Contains the implementation of the Raft state machine.
+  - `internals/capture`: Contains the code for tracing network requests by capturing with eBPF.
 - `protos/`: Contains the Protobuf definitions for the messages and services used in the key-value store.
 
 ## Usage
