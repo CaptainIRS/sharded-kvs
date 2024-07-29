@@ -12,6 +12,7 @@ spec:
     app: {{ $.Release.Name }}
     group: node-{{ $i }}
   clusterIP: None
+  publishNotReadyAddresses: true
   ports:
   - name: kv
     protocol: TCP
@@ -47,7 +48,7 @@ spec:
     matchLabels:
       app: {{ $.Release.Name }}
       group: node-{{ $i }}
-  minReadySeconds: 60
+  minReadySeconds: 30
   template:
     metadata:
       labels:
@@ -57,7 +58,7 @@ spec:
         # Trigger rolling update on sync
         rollme: {{ randAlphaNum 5 | quote }}
     spec:
-      terminationGracePeriodSeconds: 60
+      terminationGracePeriodSeconds: 30
       setHostnameAsFQDN: true
       serviceAccountName: {{ $.Values.serviceAccount.name }}
       containers:
@@ -103,6 +104,7 @@ spec:
 
           exec /node -node=$(NODE) -replica=$(REPLICA) -nodes={{ $.Values.nodes }} -replicas={{ $.Values.replicas }} -address=$(IP_ADDRESS) &
           pid=$!
+          echo $pid > /node.pid
           echo "Node started as pid $pid"
           trap_sigterm() {
             echo "Received SIGTERM, killing node-$(NODE)-replica-$(REPLICA)"
@@ -112,6 +114,10 @@ spec:
           trap trap_sigterm SIGTERM
 
           wait $pid
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/bash", "-c", "kill -SIGINT $(cat /node.pid) && sleep 30"]
         volumeMounts:
         - name: data-node
           mountPath: /data

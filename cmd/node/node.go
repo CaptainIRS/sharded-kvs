@@ -293,7 +293,7 @@ func main() {
 		}
 
 		leaderFound := false
-		leaderId, _ := kvStore.Leader()
+		_, leaderId := kvStore.Leader()
 		if leaderId != "" {
 			leaderFound = true
 		}
@@ -307,7 +307,7 @@ func main() {
 				}
 				if resp.LeaderId != "" {
 					leaderFound = true
-					leaderId = raft.ServerAddress(resp.LeaderId)
+					leaderId = raft.ServerID(resp.LeaderId)
 					break
 				}
 			}
@@ -334,12 +334,17 @@ func main() {
 	<-signalCh
 
 	log.Printf("Shutting down")
-	leaderId, _ := kvStore.Leader()
-	leaderClient := replicaclients[string(leaderId)]
 	if err := kvStore.Close(); err != nil {
 		log.Printf("Failed to close KV store: %v", err)
 	}
-	leaderClient.DemoteVoter(ctx, &pb.DemoteVoterRequest{ReplicaId: int32(*replica), Address: *address})
-	time.Sleep(5 * time.Second)
+
+	if _, leaderId := kvStore.Leader(); leaderId == "" {
+		log.Printf("No leader found")
+	} else {
+		leaderClient := replicaclients[string(leaderId)]
+		leaderClient.DemoteVoter(ctx, &pb.DemoteVoterRequest{ReplicaId: int32(*replica), Address: *address})
+	}
+	log.Printf("Waiting for 5 seconds before shutting down...")
+	time.Sleep(10 * time.Second)
 	cancel()
 }
