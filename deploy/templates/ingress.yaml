@@ -1,24 +1,24 @@
-{{- range $i, $group := until (int .Values.nodes) }}
+{{- range $i, $group := until (int .Values.shards) }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: node-{{ $i }}-ingress
+  name: shard-{{ $i }}-ingress
   namespace: {{ $.Release.Namespace }}
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
-    nginx.ingress.kubernetes.io/upstream-vhost: "node-{{ $i }}"
+    nginx.ingress.kubernetes.io/upstream-vhost: "shard-{{ $i }}"
 spec:
   ingressClassName: nginx
   rules:
-  - host: "node-{{ $i }}.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}"
+  - host: "shard-{{ $i }}.{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }}"
     http:
       paths:
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: node-{{ $i }}
+            name: shard-{{ $i }}
             port:
               number: 8080
 ---

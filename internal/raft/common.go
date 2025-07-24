@@ -32,19 +32,19 @@ func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*ra
 	log.Printf("Creating Raft store")
 	store, err := raftboltdb.NewBoltStore(path.Join(dir, "bolt"))
 	if err != nil {
-		return nil, fmt.Errorf("Could not create bolt store: %s", err)
+		return nil, fmt.Errorf("could not create bolt store: %s", err)
 	}
 
 	log.Printf("Creating Raft snapshot store")
 	snapshots, err := raft.NewFileSnapshotStore(path.Join(dir, "snapshot"), 2, os.Stderr)
 	if err != nil {
-		return nil, fmt.Errorf("Could not create snapshot store: %s", err)
+		return nil, fmt.Errorf("could not create snapshot store: %s", err)
 	}
 
 	log.Printf("Resolving address: %s", address)
 	tcpAddr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
-		return nil, fmt.Errorf("Could not resolve address: %s", err)
+		return nil, fmt.Errorf("could not resolve address: %s", err)
 	}
 
 	log.Printf("Creating Raft instance at %s", tcpAddr)
@@ -54,13 +54,13 @@ func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*ra
 		tcpAddr,
 		&raft.NetworkTransportConfig{
 			MaxPool:               10,
-			Timeout:               time.Second * 10,
+			Timeout:               raftTimeout,
 			ServerAddressProvider: serverAddressProvider{},
 			Logger:                hclog.New(&hclog.LoggerOptions{DisableTime: true}),
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("Could not create tcp transport: %s", err)
+		return nil, fmt.Errorf("could not create tcp transport: %s", err)
 	}
 
 	config := raft.DefaultConfig()
@@ -74,7 +74,7 @@ func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*ra
 	log.Printf("Creating Raft instance")
 	r, err := raft.NewRaft(config, fsm, store, store, snapshots, transport)
 	if err != nil {
-		return nil, fmt.Errorf("Could not create raft instance: %s", err)
+		return nil, fmt.Errorf("could not create raft instance: %s", err)
 	}
 
 	if shouldBootstrap {
@@ -87,7 +87,7 @@ func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*ra
 				},
 			},
 		}).Error(); err != nil {
-			return nil, fmt.Errorf("Could not bootstrap cluster: %s", err)
+			return nil, fmt.Errorf("could not bootstrap cluster: %s", err)
 		}
 	}
 
@@ -101,24 +101,24 @@ func ShutdownRaft(r *raft.Raft) error {
 	if r.State() == raft.Leader {
 		log.Printf("Demoting leader")
 		if err := r.LeadershipTransfer().Error(); err != nil {
-			return fmt.Errorf("Could not demote leader: %s", err)
+			return fmt.Errorf("could not demote leader: %s", err)
 		}
 		if err := r.Snapshot().Error(); err != nil {
-			return fmt.Errorf("Could not snapshot: %s", err)
+			return fmt.Errorf("could not snapshot: %s", err)
 		}
 		log.Printf("Leader demoted")
 	}
 	return nil
 }
 
-func JoinNode(r *raft.Raft, id, address string) error {
+func JoinReplica(r *raft.Raft, id, address string) error {
 	if r.State() != raft.Leader {
 		return nil
 	}
 	err := r.AddVoter(raft.ServerID(id), raft.ServerAddress(address), 0, 0).Error()
 	if err != nil {
-		return fmt.Errorf("Could not add voter: %s", err)
+		return fmt.Errorf("could not add voter: %s", err)
 	}
-	log.Printf("Node %s joined the cluster", id)
+	log.Printf("Replica %s joined the cluster", id)
 	return nil
 }

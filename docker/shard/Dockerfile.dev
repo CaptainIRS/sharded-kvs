@@ -1,0 +1,16 @@
+FROM golang:1.22
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+
+RUN go mod download
+
+RUN echo "#!/bin/sh" > /shard
+RUN echo "go run /app/cmd/shard/shard.go -port 8080 \$1 \$2" >> /shard
+RUN chmod +x /shard
+
+COPY cmd/shard/shard.go cmd/shard/
+COPY internal/ internal/
+
+CMD ["go", "run", "cmd/shard/shard.go", "-port", "8080"]

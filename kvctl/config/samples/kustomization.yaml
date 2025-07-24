@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- kvctl_v1_kvstore.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

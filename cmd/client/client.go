@@ -16,13 +16,13 @@ func main() {
 
 	var choice string
 	var hostChoice string
-	fmt.Println("Select cluster to communicate : ")
-	fmt.Println("0. node0")
-	fmt.Println("1. node1")
-	fmt.Println("2. node2")
+	fmt.Println("Select shard to communicate : ")
+	fmt.Println("0. shard0")
+	fmt.Println("1. shard1")
+	fmt.Println("2. shard2")
 	fmt.Scanln(&hostChoice)
 
-	address := "node-" + hostChoice + ".kvs.svc.localho.st:8080"
+	address := "shard-" + hostChoice + ".kvs.svc.localho.st:80"
 
 	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {

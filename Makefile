@@ -20,24 +20,22 @@ fmt:
 	helmfile lint
 	@echo "$(BLUE)Formatting helm files...done$(CLEAR)"
 
-clean: helm_destroy
-	minikube kubectl -- delete namespace $(NAMESPACE) || true
-	minikube kubectl -- delete namespace ingress-nginx || true
-	minikube kubectl -- delete namespace chaos-mesh || true
+clean:
+	kind delete cluster --name sharded-kvs-cluster
 	rm -rf .deployment
 
 sync: helm_sync
 
-start_minikube: .deployment/minikube_start
+start_kind: .deployment/kind_start
 
-dashboard:
-	minikube dashboard --url=true --port=8989
+dashboard: .deployment/kubeconfig
+	k9s --kubeconfig .deployment/kubeconfig
 
 helm_apply: build_images
 	@echo "$(BLUE)Deploying helm chart...$(CLEAR)"
-	minikube kubectl -- create namespace $(NAMESPACE) || true
-	minikube kubectl -- create namespace ingress-nginx || true
-	minikube kubectl -- create namespace chaos-mesh || true
+	kubectl create namespace $(NAMESPACE) || true
+	kubectl create namespace ingress-nginx || true
+	kubectl create namespace chaos-mesh || true
 	helmfile apply --suppress-secrets
 	@echo "$(BLUE)Deploying helm chart...done$(CLEAR)"
 
@@ -53,33 +51,32 @@ protos:
 dnsedit:
 	KUBE_EDITOR="vim" kubectl -n kube-system edit configmaps coredns -o yaml
 
-helm_destroy:
-	@echo "$(BLUE)Deleting helm chart...$(CLEAR)"
-	helmfile destroy --skip-charts || true
-	@echo "$(BLUE)Deleting helm chart...done$(CLEAR)"
-
 helm_sync: build_images
 	@echo "$(BLUE)Syncing updates...$(CLEAR)"
 	helmfile sync --skip-deps
 	@echo "$(BLUE)Syncing updates...done$(CLEAR)"
 
-build_images: .deployment/minikube_start
+build_images: .deployment/kind_start
 	@echo "$(BLUE)Building images...$(CLEAR)"
 	./build.sh $(DOCKER_ENV)
 	@echo "$(BLUE)Building images...done$(CLEAR)"
 
-.deployment/minikube_start: .deployment/check_deps
+.deployment/kind_start: .deployment/check_deps
 	mkdir -p .deployment
-	@echo "$(BLUE)Starting minikube...$(CLEAR)"
-	minikube start --driver docker --extra-config=apiserver.service-node-port-range=8080-8080 --dns-domain localho.st  --ports 127.0.0.1:8080:8080 --cpus 4 --memory 8192
-	@echo "$(BLUE)Starting minikube...done$(CLEAR)"
-	touch .deployment/minikube_start
+	@echo "$(BLUE)Creating kind cluster...$(CLEAR)"
+	kind create cluster --config deploy/kind/cluster.yaml
+	@echo "$(BLUE)Creating kind cluster...done$(CLEAR)"
+	touch .deployment/kind_start
+
+.deployment/kubeconfig: .deployment/kind_start
+	kind get kubeconfig --name sharded-kvs-cluster > .deployment/kubeconfig
 
 .deployment/check_deps:
 	mkdir -p .deployment
 	@echo "$(BLUE)Checking dependencies...$(CLEAR)"
-	minikube version
+	kind version
 	kubectl version --client=true
+	k9s version
 	docker --version
 	docker buildx version
 	helmfile version -o short

@@ -12,13 +12,27 @@ releases:
   version: 4.10.0
   values:
   - controller:
-      service:
-        enableHttps: false
-        nodePorts:
-          http: 8080
-      allowSnippetAnnotations: true
       extraArgs:
-        v: "3"
+        publish-status-address: localhost
+      hostPort:
+        enabled: true
+      publishService:
+        enabled: false
+      service:
+        type: NodePort
+        enableHttps: false
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Equal
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+          operator: Equal
+      watchIngressWithoutClass: true
+      nodeSelector:
+        kubernetes.io/os: linux
+        kubernetes.io/hostname: "sharded-kvs-cluster-control-plane"
+      allowSnippetAnnotations: true
 - name: chaos-mesh
   namespace: chaos-mesh
   createNamespace: true
@@ -35,9 +49,9 @@ releases:
   createNamespace: true
   chart: ./deploy
   values:
-  - nodes: 3
+  - shards: 3
     replicas: 3
-    nodeImage: sharded-kvs-node
+    shardImage: sharded-kvs-shard
     clusterDomain: localho.st
     chaosMesh:
       enabled: true

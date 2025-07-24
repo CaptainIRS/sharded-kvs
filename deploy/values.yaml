@@ -1,9 +1,6 @@
-nodes: 3
+shards: 3
 replicas: 1
-nodeImage: sharded-kvs-node
+shardImage: sharded-kvs-shard
 clusterDomain: localho.st
-serviceAccount:
-  create: true
-  name: kvs-sa
 chaosMesh:
   enabled: false

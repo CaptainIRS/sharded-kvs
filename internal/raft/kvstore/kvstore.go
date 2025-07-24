@@ -9,8 +9,8 @@ import (
 
 	pb "github.com/CaptainIRS/sharded-kvs/internal/protos"
 	common "github.com/CaptainIRS/sharded-kvs/internal/raft"
-	"github.com/golang/protobuf/proto"
 	"github.com/hashicorp/raft"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -77,9 +77,9 @@ func (k *KVStore) Delete(key string) error {
 	return future.Error()
 }
 
-func (k *KVStore) Open(dir, ip string, raftPort, nodeId, replicaId int, shouldBootstrap bool) error {
+func (k *KVStore) Open(dir, ip string, raftPort, shardId, replicaId int, shouldBootstrap bool) error {
 	var fsm = NewKVFsm(k.store)
-	id := fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", nodeId, replicaId, nodeId, raftPort)
+	id := fmt.Sprintf("shard-%d-replica-%d.shard-%d.kvs.svc.localho.st:%d", shardId, replicaId, shardId, raftPort)
 	address := fmt.Sprintf("%s:%d", ip, raftPort)
 	r, err := common.SetupRaft(dir, id, address, shouldBootstrap, fsm)
 	if err != nil {
@@ -93,8 +93,8 @@ func (k *KVStore) Close() error {
 	return common.ShutdownRaft(k.raft)
 }
 
-func (k *KVStore) Join(ip string, raftPort, nodeId, replicaId int) error {
-	id := fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", nodeId, replicaId, nodeId, raftPort)
+func (k *KVStore) Join(ip string, raftPort, shardId, replicaId int) error {
+	id := fmt.Sprintf("shard-%d-replica-%d.shard-%d.kvs.svc.localho.st:%d", shardId, replicaId, shardId, raftPort)
 	address := fmt.Sprintf("%s:%d", ip, raftPort)
 
 	if k.raft.State() != raft.Leader {
@@ -103,25 +103,25 @@ func (k *KVStore) Join(ip string, raftPort, nodeId, replicaId int) error {
 
 	configFuture := k.raft.GetConfiguration()
 	if err := configFuture.Error(); err != nil {
-		return fmt.Errorf("Failed to get raft configuration: %s", err)
+		return fmt.Errorf("failed to get raft configuration: %s", err)
 	}
 	for _, member := range configFuture.Configuration().Servers {
 		if member.ID == raft.ServerID(id) || member.Address == raft.ServerAddress(address) {
 			if member.ID == raft.ServerID(id) && member.Address == raft.ServerAddress(address) {
-				log.Printf("Node (%s, %s) already exists in the cluster", id, address)
+				log.Printf("Replica (%s, %s) already exists in the cluster", id, address)
 				return nil
 			}
-			log.Printf("Removing existing node (%s, %s) which is different from (%s, %s)", member.ID, member.Address, id, address)
+			log.Printf("Removing existing replica (%s, %s) which is different from (%s, %s)", member.ID, member.Address, id, address)
 			if err := k.raft.RemoveServer(member.ID, 0, 0).Error(); err != nil {
-				return fmt.Errorf("Failed to remove existing node %s: %s", id, err)
+				return fmt.Errorf("failed to remove existing replica %s: %s", id, err)
 			}
 		}
 	}
-	return common.JoinNode(k.raft, id, address)
+	return common.JoinReplica(k.raft, id, address)
 }
 
-func (k *KVStore) DemoteVoter(ip string, raftPort, nodeId, replicaId int) error {
-	id := fmt.Sprintf("node-%d-replica-%d.node-%d.kvs.svc.localho.st:%d", nodeId, replicaId, nodeId, raftPort)
+func (k *KVStore) DemoteVoter(ip string, raftPort, shardId, replicaId int) error {
+	id := fmt.Sprintf("shard-%d-replica-%d.shard-%d.kvs.svc.localho.st:%d", shardId, replicaId, shardId, raftPort)
 	if k.raft.State() != raft.Leader {
 		return nil
 	}

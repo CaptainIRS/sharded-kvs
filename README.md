@@ -6,12 +6,12 @@
 
 ## Features
 * **Sharding**: The key-value store is sharded across multiple nodes using [Consistent Hashing with Bounded Loads](https://research.google/blog/consistent-hashing-with-bounded-loads/).
-* **Replication**: The key-value store supports replication across multiple replicas on each node. The number of replicas can be configured (default: 3). It uses the [Raft Consensus Algorithm](https://raft.github.io/).
+* **Replication**: The key-value store supports replication across multiple replicas for each shard. The number of replicas can be configured (default: 3). It uses the [Raft Consensus Algorithm](https://raft.github.io/).
 * **Load Balancing**: The key-value store uses a round-robin load balancer to distribute the requests across the replicas using the [NGINX Ingress Controller](https://kubernetes.github.io/ingress-nginx/). Leader forwarding is used to forward the requests to the leader replica.
-* **Scalability**: The key-value store can be deployed on Kubernetes with a configurable number of nodes and replicas and can be changed dynamically using the [Helm](https://helm.sh/) values file. (Run `make deploy` to apply the changes after updating the [helmfile.yaml](./helmfile.yaml) file)
+* **Scalability**: The key-value store can be deployed on Kubernetes with a configurable number of shards and replicas and can be changed dynamically using the [Helm](https://helm.sh/) values file. (Run `make deploy` to apply the changes after updating the [helmfile.yaml](./helmfile.yaml) file)
 * **Upgradability**: The key-value store can be upgraded without any downtime using the [RollingUpdate](https://kubernetes.io/docs/tutorials/kubernetes-basics/update/update-intro/) strategy in Kubernetes. (Run `make sync` after updating the source code).
-* **Fault Simulation**: The system can simulate network partitions and node failures using [Chaos Mesh](https://chaos-mesh.org/). Visit https://chaos-dashboard.svc.localho.st:8080/chaos-mesh/ to access the Chaos Mesh dashboard and experiment with different fault scenarios.
-* **Tracing**: The system provides logs of traffic among all the nodes logged to the standard output by capturing packets using eBPF. The logs can be viewed using the `stern` tool. (Run `stern -l group=node-0 -n=kvs -t=short` to view the logs of the node-0 replica group).
+* **Fault Simulation**: The system can simulate network partitions and shard failures using [Chaos Mesh](https://chaos-mesh.org/). Visit http://chaos-dashboard.svc.localho.st/chaos-mesh/ to access the Chaos Mesh dashboard and experiment with different fault scenarios.
+* **Tracing**: The system provides logs of traffic among all the shards logged to the standard output by capturing packets using eBPF. The logs can be viewed using the `stern` tool. (Run `stern -l group=shard-0 -n=kvs -t=short` to view the logs of the shard-0 replica group).
 * **Portability**: The system can be run in any platform (Windows, macOS, Linux) with no changes to the codebase since it is built using Go and Kubernetes.
 
 
@@ -42,7 +42,7 @@
   - `internal/protos/`: Contains the generated Go code for the Protobuf messages and services.
     - `fsm.proto`: Contains the proto definition for the Raft state machine.
     - `kv.proto`: Contains the proto definition for the key-value store service through which clients can interact with the key-value store.
-    - `node.proto`: Contains the proto definition for the node service through which replica groups can interact with each other (for forwarding request to the node containing the required shard).
+    - `shard.proto`: Contains the proto definition for the shard service through which replica groups can interact with each other (for forwarding request to the shard containing the required shard).
     - `replica.proto`: Contains the proto definition for the replica service through which replicas can interact with each other (for leader forwarding).
   - `internals/raft`: Contains the implementation of the Raft state machine.
   - `internals/capture`: Contains the code for tracing network requests by capturing with eBPF.
@@ -67,13 +67,13 @@ Run `make "target"` where `"target"` is one of the following:
     ```console
     $ stern -n kvs -t=short
     ```
-* To view logs of a specific replica group (e.g., node-0):
+* To view logs of a specific replica group (e.g., shard-0):
     ```console
-    $ stern -l group=node-0 -n kvs -t=short
+    $ stern -l group=shard-0 -n kvs -t=short
     ```
-* To view logs of a specific replica (e.g., node-0-replica-0):
+* To view logs of a specific replica (e.g., shard-0-replica-0):
     ```console
-    $ stern -l node-0-replica-0 -n kvs -t=short
+    $ stern -l shard-0-replica-0 -n kvs -t=short
     ```
 * To remove logs of heartbeat messages add `-e="Sending heartbeat"` to the command:
     ```console
@@ -92,17 +92,17 @@ graph LR;
  ingress-->|routing rule|service0[Service<br>LB];
  ingress-->|routing rule|service1[Service<br>LB];
  ingress-->|routing rule|service2[Service<br>LB];
- subgraph node0[node-0 StatefulSet]
+ subgraph shard0[shard-0 StatefulSet]
  service0-->pod00[Pod<br>replica-0];
  service0-->pod01[Pod<br>replica-1];
  service0-->pod02[Pod<br>replica-2];
  end
- subgraph node1[node-1 StatefulSet]
+ subgraph shard1[shard-1 StatefulSet]
  service1-->pod10[Pod<br>replica-0];
  service1-->pod11[Pod<br>replica-1];
  service1-->pod12[Pod<br>replica-2];
  end
- subgraph node2[node-2 StatefulSet]
+ subgraph shard2[shard-2 StatefulSet]
  service2-->pod20[Pod<br>replica-0];
  service2-->pod21[Pod<br>replica-1];
  service2-->pod22[Pod<br>replica-2];
@@ -112,5 +112,5 @@ graph LR;
  classDef cluster fill:#fff,stroke:#bbb,stroke-width:2px,color:#326ce5;
  class ingress,service0,ingress1,service1,ingress2,service2,pod01,pod02,pod00,pod11,pod12,pod10,pod21,pod22,pod20 k8s;
  class client plain;
- class node0,node1,node2 cluster;
+ class shard0,shard1,shard2 cluster;
 ```

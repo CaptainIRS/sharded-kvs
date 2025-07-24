@@ -1,69 +1,68 @@
-{{- range $i, $group := until (int .Values.nodes) }}
+{{- range $i, $group := until (int .Values.shards) }}
 apiVersion: v1
 kind: Service
 metadata:
-  name: node-{{ $i }}
+  name: shard-{{ $i }}
   labels:
     app: {{ $.Release.Name }}
-    group: node-{{ $i }}
+    group: shard-{{ $i }}
   namespace: {{ $.Release.Namespace }}
 spec:
   selector:
     app: {{ $.Release.Name }}
-    group: node-{{ $i }}
+    group: shard-{{ $i }}
   clusterIP: None
   publishNotReadyAddresses: true
   ports:
-  - name: kv
+  - name: kvrpc
     protocol: TCP
     port: 8080
     targetPort: 8080
-  - name: noderpc
+  - name: shardrpc
     protocol: TCP
     port: 8081
     targetPort: 8081
-  - name: raft
+  - name: raftrpc
     protocol: TCP
     port: 8082
     targetPort: 8082
-  - name: leader
+  - name: leaderrpc
     protocol: TCP
     port: 8083
     targetPort: 8083
 ---
 {{- end }}
-{{- range $i, $group := until (int .Values.nodes) }}
+{{- range $i, $group := until (int .Values.shards) }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: node-{{ $i }}-replica
+  name: shard-{{ $i }}-replica
   labels:
     app: {{ $.Release.Name }}
-    group: node-{{ $i }}
+    group: shard-{{ $i }}
   namespace: {{ $.Release.Namespace }}
 spec:
-  serviceName: node-{{ $i }}
+  serviceName: shard-{{ $i }}
   replicas: {{ $.Values.replicas }}
   selector:
     matchLabels:
       app: {{ $.Release.Name }}
-      group: node-{{ $i }}
-  minReadySeconds: 30
+      group: shard-{{ $i }}
+  minReadySeconds: 10
   template:
     metadata:
       labels:
         app: {{ $.Release.Name }}
-        group: node-{{ $i }}
+        group: shard-{{ $i }}
       annotations:
         # Trigger rolling update on sync
         rollme: {{ randAlphaNum 5 | quote }}
     spec:
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 10
       setHostnameAsFQDN: true
-      serviceAccountName: {{ $.Values.serviceAccount.name }}
       containers:
-      - name: node
-        image: {{ $.Values.nodeImage }}
+      - name: shard
+        image: {{ $.Values.shardImage }}
         imagePullPolicy: Never
         securityContext:
           allowPrivilegeEscalation: true
@@ -72,14 +71,14 @@ spec:
             - NET_RAW
             - NET_ADMIN
         ports:
-        - name: kv
+        - name: kvrpc
           containerPort: 8080
-        - name: noderpc
+        - name: shardrpc
           containerPort: 8081
-        - name: raft
+        - name: raftrpc
           containerPort: 8082
         env:
-        - name: NODE
+        - name: SHARD
           value: "{{ $i }}"
         - name: REPLICA
           valueFrom:
@@ -94,20 +93,20 @@ spec:
         - -c
         - |
           #!/bin/bash
-          echo "Starting node-$(NODE)-replica-$(REPLICA) with IP $(IP_ADDRESS)"
+          echo "Starting shard-$(SHARD)-replica-$(REPLICA) with IP $(IP_ADDRESS)"
           for i in $(seq 1 30); do
             echo "Waiting for DNS. Retries: $i"
-            nslookup node-$(NODE)-replica-$(REPLICA).node-$(NODE).{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }} >/dev/null && break
+            nslookup shard-$(SHARD)-replica-$(REPLICA).shard-$(SHARD).{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }} >/dev/null && break
             sleep 2
           done
-          setcap cap_net_raw,cap_net_admin+eip /node
+          setcap cap_net_raw,cap_net_admin+eip /shard
 
-          exec /node -node=$(NODE) -replica=$(REPLICA) -nodes={{ $.Values.nodes }} -replicas={{ $.Values.replicas }} -address=$(IP_ADDRESS) &
+          exec /shard -shard=$(SHARD) -replica=$(REPLICA) -shards={{ $.Values.shards }} -replicas={{ $.Values.replicas }} -address=$(IP_ADDRESS) &
           pid=$!
-          echo $pid > /node.pid
-          echo "Node started as pid $pid"
+          echo $pid > /shard.pid
+          echo "Shard started as pid $pid"
           trap_sigterm() {
-            echo "Received SIGTERM, killing node-$(NODE)-replica-$(REPLICA)"
+            echo "Received SIGTERM, killing shard-$(SHARD)-replica-$(REPLICA)"
             kill $pid
           }
 
@@ -117,13 +116,13 @@ spec:
         lifecycle:
           preStop:
             exec:
-              command: ["/bin/bash", "-c", "kill -SIGINT $(cat /node.pid) && sleep 30"]
+              command: ["/bin/bash", "-c", "kill -SIGINT $(cat /shard.pid) && sleep 30"]
         volumeMounts:
-        - name: data-node
+        - name: data-shard
           mountPath: /data
   volumeClaimTemplates:
   - metadata:
-      name: data-node
+      name: data-shard
     spec:
       accessModes: [ "ReadWriteOnce" ]
       resources:

@@ -1,0 +1,73 @@
+apiVersion: kvctl.captainirs.dev/v1
+kind: KVStore
+metadata:
+  labels:
+    app.kubernetes.io/name: kvctl
+    app.kubernetes.io/managed-by: kustomize
+  name: kvstore-sample
+spec:
+  shards: 1
+  replicas: 1
+  podSpec:
+    terminationGracePeriodSeconds: 10
+    setHostnameAsFQDN: true
+    containers:
+    - name: shard
+      image: sharded-kvs-shard
+      imagePullPolicy: Never
+      securityContext:
+        allowPrivilegeEscalation: true
+        capabilities:
+          add:
+          - NET_RAW
+          - NET_ADMIN
+      ports:
+      - name: kvrpc
+        containerPort: 8080
+      - name: shardrpc
+        containerPort: 8081
+      - name: raftrpc
+        containerPort: 8082
+      env:
+      - name: SHARD
+        value: "{{ $i }}"
+      - name: REPLICA
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
+      - name: IP_ADDRESS
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      command:
+      - bash
+      - -c
+      - |
+        #!/bin/bash
+        echo "Starting shard-$(SHARD)-replica-$(REPLICA) with IP $(IP_ADDRESS)"
+        for i in $(seq 1 30); do
+          echo "Waiting for DNS. Retries: $i"
+          nslookup shard-$(SHARD)-replica-$(REPLICA).shard-$(SHARD).{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }} >/dev/null && break
+          sleep 2
+        done
+        setcap cap_net_raw,cap_net_admin+eip /shard
+
+        exec /shard -shard=$(SHARD) -replica=$(REPLICA) -shards={{ $.Values.shards }} -replicas={{ $.Values.replicas }} -address=$(IP_ADDRESS) &
+        pid=$!
+        echo $pid > /shard.pid
+        echo "Shard started as pid $pid"
+        trap_sigterm() {
+          echo "Received SIGTERM, killing shard-$(SHARD)-replica-$(REPLICA)"
+          kill $pid
+        }
+
+        trap trap_sigterm SIGTERM
+
+        wait $pid
+      lifecycle:
+        preStop:
+          exec:
+            command: ["/bin/bash", "-c", "kill -SIGINT $(cat /shard.pid) && sleep 30"]
+      volumeMounts:
+      - name: data-shard
+        mountPath: /data
