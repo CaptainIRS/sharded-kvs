@@ -27,7 +27,7 @@
 ## Prerequisites (deployment)
 1. Install [Docker](https://docs.docker.com/get-docker/).
 2. Install [Docker Buildx](https://github.com/docker/buildx?tab=readme-ov-file#installing).
-3. Install [MiniKube](https://minikube.sigs.k8s.io/docs/start/).
+3. Install [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation).
 4. Install [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl).
 5. Install [Helmfile](https://helmfile.readthedocs.io/en/latest/#installation).
 6. Install `stern`:
