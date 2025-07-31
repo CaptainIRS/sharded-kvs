@@ -4,25 +4,80 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log"
+	"os"
 	"strconv"
 
 	pb "github.com/CaptainIRS/sharded-kvs/internal/protos"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"gopkg.in/yaml.v3"
 )
+
+var (
+	kvctlConfigPath = flag.String("kvctlConfigPath", "./kvctl/config/samples/kvctl_v1_kvstore.yaml", "Path to kvctl config")
+	dummyData       = flag.Bool("dummyData", false, "Should insert dummy data?")
+)
+
+type KvctlSpec struct {
+	Shards        int            `yaml:"shards"`
+	Replicas      int            `yaml:"replicas"`
+	IngressDomain string         `yaml:"ingressDomain"`
+	PodSpec       map[string]any `yaml:"podSpec"`
+}
+type KvctlMetadata struct {
+	Name      string            `yaml:"name"`
+	Namespace string            `yaml:"namespace"`
+	Labels    map[string]string `yaml:"labels"`
+}
+type KvctlConfig struct {
+	ApiVersion string        `yaml:"apiVersion"`
+	Kind       string        `yaml:"kind"`
+	Metadata   KvctlMetadata `yaml:"metadata"`
+	Spec       KvctlSpec     `yaml:"spec"`
+}
 
 func main() {
 	flag.Parse()
+	kvctlConfig := KvctlConfig{}
+	if buf, err := os.ReadFile(*kvctlConfigPath); err != nil {
+		log.Fatalf("Unable to read config file at %s: %s", *kvctlConfigPath, err)
+		panic(err)
+	} else {
+		if err := yaml.Unmarshal(buf, &kvctlConfig); err != nil {
+			log.Fatalf("Unable to parse config file at %s: %s", *kvctlConfigPath, err)
+			panic(err)
+		}
+	}
 
-	var choice string
-	var hostChoice string
-	fmt.Println("Select shard to communicate : ")
-	fmt.Println("0. shard0")
-	fmt.Println("1. shard1")
-	fmt.Println("2. shard2")
-	fmt.Scanln(&hostChoice)
+	if *dummyData {
+		address := fmt.Sprintf("%s-shard-%d.%s:80", kvctlConfig.Metadata.Name, 0, kvctlConfig.Spec.IngressDomain)
+		conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			panic(err)
+		}
+		client := pb.NewKVClient(conn)
+		for i := range 100 {
+			fmt.Printf("Setting key %d\n", i)
+			key := strconv.Itoa(i)
+			value := strconv.Itoa(100 - i)
+			if _, err := client.Put(context.Background(), &pb.PutRequest{Key: key, Value: value}); err != nil {
+				fmt.Println(err)
+			}
+		}
+		return
+	}
 
-	address := "shard-" + hostChoice + ".kvs.svc.localho.st:80"
+	var choice int
+	fmt.Println(kvctlConfig.ApiVersion)
+	fmt.Println("Select shard to communicate: ")
+	for i := 0; i < kvctlConfig.Spec.Shards; i++ {
+		fmt.Printf("%d. %s-shard-%d\n", i, kvctlConfig.Metadata.Name, i)
+	}
+	fmt.Print("Choice: ")
+	fmt.Scanln(&choice)
+
+	address := fmt.Sprintf("%s-shard-%d.%s:80", kvctlConfig.Metadata.Name, choice, kvctlConfig.Spec.IngressDomain)
 
 	conn, err := grpc.Dial(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -35,14 +90,13 @@ func main() {
 		fmt.Println("1. Get")
 		fmt.Println("2. Put")
 		fmt.Println("3. Delete")
-		fmt.Println("4. Range Query")
-		fmt.Println("5. Quit")
+		fmt.Println("4. Quit")
 		fmt.Print("Enter your choice: ")
 		fmt.Scanln(&choice)
 
 		switch choice {
 		// Get
-		case "1":
+		case 1:
 			var key string
 			fmt.Print("Enter key to get: ")
 			fmt.Scanln(&key)
@@ -52,7 +106,7 @@ func main() {
 				fmt.Println(resp.Value)
 			}
 		// Put
-		case "2":
+		case 2:
 			var key, value string
 			fmt.Print("Enter key to put: ")
 			fmt.Scanln(&key)
@@ -62,35 +116,14 @@ func main() {
 				fmt.Println(err)
 			}
 		// Delete
-		case "3":
+		case 3:
 			var key string
 			fmt.Print("Enter key to delete: ")
 			fmt.Scanln(&key)
 			if _, err := client.Delete(context.Background(), &pb.DeleteRequest{Key: key}); err != nil {
 				fmt.Println(err)
 			}
-		// Range Query
-		case "4":
-			var input1, input2 string
-			fmt.Print("Enter the first number: ")
-			fmt.Scanln(&input1)
-			fmt.Print("Enter the second number: ")
-			fmt.Scanln(&input2)
-
-			num1, err1 := strconv.ParseInt(input1, 10, 64)
-			num2, err2 := strconv.ParseInt(input2, 10, 64)
-
-			if err1 != nil || err2 != nil || num1 > num2 {
-				fmt.Println("Error: Both inputs should be numbers and num1 should be lesser than num2")
-				continue
-			}
-
-			if resp, err := client.RangeQuery(context.Background(), &pb.RangeQueryRequest{Key1: input1, Key2: input2}); err != nil {
-				fmt.Println(err)
-			} else {
-				fmt.Println(resp.Value)
-			}
-		case "5":
+		case 4:
 			fmt.Println("Quitting...")
 			return
 		default:

@@ -149,12 +149,6 @@ func (t *tcpStream) run() {
 			} else {
 				log.Printf("Sending AppendEntriesRequest to %s:\n%s", replaceIpsWithHostnames(t.net.Dst().String()), appendEntriesToString(req))
 			}
-			// var res raft.AppendEntriesResponse
-			// if err := dec.Decode(&res); err != nil {
-			// 	log.Printf("Failed to decode AppendEntriesResponse: %v", err)
-			// 	continue
-			// }
-			// log.Printf("Received AppendEntriesResponse\n") // from %s:\n%s", replaceIpsWithHostnames(t.net.Src().String()), appendEntriesResponseToString(res))
 		case rpcRequestVote:
 			var req raft.RequestVoteRequest
 			if err := dec.Decode(&req); err != nil {
@@ -162,12 +156,6 @@ func (t *tcpStream) run() {
 				continue
 			}
 			log.Printf("Sending RequestVoteRequest to %s:\n%s", replaceIpsWithHostnames(t.net.Dst().String()), requestVoteToString(req))
-			// var res raft.RequestVoteResponse
-			// if err := dec.Decode(&res); err != nil {
-			// 	log.Printf("Failed to decode RequestVoteResponse: %v", err)
-			// 	continue
-			// }
-			// log.Printf("Received RequestVoteResponse\n")
 		case rpcInstallSnapshot:
 			var req raft.InstallSnapshotRequest
 			if err := dec.Decode(&req); err != nil {
@@ -175,12 +163,6 @@ func (t *tcpStream) run() {
 				continue
 			}
 			log.Printf("Sending InstallSnapshotRequest to %s:\n%s", replaceIpsWithHostnames(t.net.Dst().String()), installSnapshotToString(req))
-			// var res raft.InstallSnapshotResponse
-			// if err := dec.Decode(&res); err != nil {
-			// 	log.Printf("Failed to decode InstallSnapshotResponse: %v", err)
-			// 	continue
-			// }
-			// log.Printf("Received InstallSnapshotResponse\n")
 		case rpcTimeoutNow:
 			var req raft.TimeoutNowRequest
 			if err := dec.Decode(&req); err != nil {
@@ -188,12 +170,6 @@ func (t *tcpStream) run() {
 				continue
 			}
 			log.Printf("Sending TimeoutNowRequest %s", replaceIpsWithHostnames(t.net.Dst().String()))
-			// var res raft.TimeoutNowResponse
-			// if err := dec.Decode(&res); err != nil {
-			// 	log.Printf("Failed to decode TimeoutNowResponse: %v", err)
-			// 	continue
-			// }
-			// log.Printf("Received TimeoutNowResponse\n")
 		default:
 			log.Printf("Unknown RPC type: %d", rpcType)
 		}
@@ -209,7 +185,7 @@ func RunPacketCapture(ctx context.Context, srcIp, dstPort string) {
 	defer sourceHandle.Close()
 
 	if err := sourceHandle.SetBPFFilter(fmt.Sprintf("src host %s and tcp dst port %s", srcIp, dstPort)); err != nil {
-	// if err := sourceHandle.SetBPFFilter(fmt.Sprintf("(dst host %s and tcp src port %s) or (src host %s and tcp dst port %s)", srcIp, dstPort, srcIp, dstPort)); err != nil {
+		// if err := sourceHandle.SetBPFFilter(fmt.Sprintf("(dst host %s and tcp src port %s) or (src host %s and tcp dst port %s)", srcIp, dstPort, srcIp, dstPort)); err != nil {
 		log.Fatal("Failed to set BPF filter")
 		return
 	}

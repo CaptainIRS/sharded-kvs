@@ -27,24 +27,24 @@ func (s serverAddressProvider) ServerAddr(id raft.ServerID) (raft.ServerAddress,
 
 var raftTimeout = 10 * time.Second
 
-func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*raft.Raft, error) {
+func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*raft.Raft, *raft.FileSnapshotStore, error) {
 
 	log.Printf("Creating Raft store")
 	store, err := raftboltdb.NewBoltStore(path.Join(dir, "bolt"))
 	if err != nil {
-		return nil, fmt.Errorf("could not create bolt store: %s", err)
+		return nil, nil, fmt.Errorf("could not create bolt store: %s", err)
 	}
 
 	log.Printf("Creating Raft snapshot store")
 	snapshots, err := raft.NewFileSnapshotStore(path.Join(dir, "snapshot"), 2, os.Stderr)
 	if err != nil {
-		return nil, fmt.Errorf("could not create snapshot store: %s", err)
+		return nil, nil, fmt.Errorf("could not create snapshot store: %s", err)
 	}
 
 	log.Printf("Resolving address: %s", address)
 	tcpAddr, err := net.ResolveTCPAddr("tcp", address)
 	if err != nil {
-		return nil, fmt.Errorf("could not resolve address: %s", err)
+		return nil, nil, fmt.Errorf("could not resolve address: %s", err)
 	}
 
 	log.Printf("Creating Raft instance at %s", tcpAddr)
@@ -60,7 +60,7 @@ func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*ra
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("could not create tcp transport: %s", err)
+		return nil, nil, fmt.Errorf("could not create tcp transport: %s", err)
 	}
 
 	config := raft.DefaultConfig()
@@ -74,7 +74,7 @@ func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*ra
 	log.Printf("Creating Raft instance")
 	r, err := raft.NewRaft(config, fsm, store, store, snapshots, transport)
 	if err != nil {
-		return nil, fmt.Errorf("could not create raft instance: %s", err)
+		return nil, nil, fmt.Errorf("could not create raft instance: %s", err)
 	}
 
 	if shouldBootstrap {
@@ -87,13 +87,13 @@ func SetupRaft(dir, id, address string, shouldBootstrap bool, fsm raft.FSM) (*ra
 				},
 			},
 		}).Error(); err != nil {
-			return nil, fmt.Errorf("could not bootstrap cluster: %s", err)
+			return nil, nil, fmt.Errorf("could not bootstrap cluster: %s", err)
 		}
 	}
 
 	log.Printf("Raft setup complete")
 
-	return r, nil
+	return r, snapshots, nil
 }
 
 func ShutdownRaft(r *raft.Raft) error {

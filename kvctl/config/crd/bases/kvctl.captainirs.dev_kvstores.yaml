@@ -26,6 +26,8 @@ spec:
             type: object
           spec:
             properties:
+              ingressDomain:
+                type: string
               podSpec:
                 properties:
                   activeDeadlineSeconds:
@@ -3656,40 +3658,50 @@ spec:
                 - containers
                 type: object
               replicas:
+                format: int32
                 minimum: 1
                 type: integer
               shards:
+                format: int32
                 minimum: 1
                 type: integer
             required:
+            - ingressDomain
             - podSpec
             - replicas
             - shards
             type: object
           status:
             properties:
-              activePods:
+              currentShards:
+                type: integer
+              lastTransition:
+                format: date-time
+                type: string
+              message:
+                type: string
+              phase:
+                type: string
+              shardsCompletedPurge:
                 items:
-                  properties:
-                    apiVersion:
-                      type: string
-                    fieldPath:
-                      type: string
-                    kind:
-                      type: string
-                    name:
-                      type: string
-                    namespace:
-                      type: string
-                    resourceVersion:
-                      type: string
-                    uid:
-                      type: string
-                  type: object
-                  x-kubernetes-map-type: atomic
+                  type: integer
                 type: array
+              shardsCompletedSend:
+                items:
+                  type: integer
+                type: array
+              shardsResumedWrites:
+                items:
+                  type: integer
+                type: array
+              shardsStoppedWrites:
+                items:
+                  type: integer
+                type: array
+              targetShards:
+                type: integer
             required:
-            - activePods
+            - currentShards
             type: object
         required:
         - spec

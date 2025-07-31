@@ -34,25 +34,46 @@ type KVStoreSpec struct {
 	// The number of shards to be used for the KVStore
 	// +required
 	// +kubebuilder:validation:Minimum=1
-	Shards int `json:"shards"`
+	Shards int32 `json:"shards"`
 
 	// The number of replicas per shard in the Raft cluster
 	// +required
 	// +kubebuilder:validation:Minimum=1
-	Replicas int `json:"replicas"`
+	Replicas int32 `json:"replicas"`
+
+	// Ingress domain
+	// +required
+	IngressDomain string `json:"ingressDomain"`
 
 	// PodSpec of the replicas
 	// +required
 	PodSpec corev1.PodSpec `json:"podSpec"`
 }
 
+type RedistributionPhase string
+
+const (
+	PhaseNormal          RedistributionPhase = ""
+	PhasePreparingScale  RedistributionPhase = "PreparingScale"
+	PhaseStoppingWrites  RedistributionPhase = "StoppingWrites"
+	PhaseSendingKeys     RedistributionPhase = "SendingKeys"
+	PhasePurgingKeys     RedistributionPhase = "PurgingKeys"
+	PhaseResumingWrites  RedistributionPhase = "ResumingWrites"
+	PhaseFinalizingScale RedistributionPhase = "FinalizingScale"
+	PhaseScaleComplete   RedistributionPhase = "ScaleComplete"
+)
+
 // KVStoreStatus defines the observed state of KVStore.
 type KVStoreStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// defines the list of active pods in the cluster
-	ActivePods []corev1.ObjectReference `json:"activePods"`
+	Phase                RedistributionPhase `json:"phase,omitempty"`
+	CurrentShards        int                 `json:"currentShards"`
+	TargetShards         int                 `json:"targetShards,omitempty"`
+	ShardsStoppedWrites  []int               `json:"shardsStoppedWrites,omitempty"`
+	ShardsCompletedSend  []int               `json:"shardsCompletedSend,omitempty"`
+	ShardsCompletedPurge []int               `json:"shardsCompletedPurge,omitempty"`
+	ShardsResumedWrites  []int               `json:"shardsResumedWrites,omitempty"`
+	Message              string              `json:"message,omitempty"`
+	LastTransition       metav1.Time         `json:"lastTransition,omitempty"`
 }
 
 // +kubebuilder:object:root=true

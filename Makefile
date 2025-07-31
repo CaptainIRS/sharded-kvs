@@ -7,10 +7,13 @@ DOCKER_ENV := prod
 
 .PHONY: protos dnsedit
 
-deploy: helm_apply
+deploy: build_images
 
 client:
 	go run cmd/client/client.go
+
+dummy:
+	go run cmd/client/client.go -dummyData
 
 fmt: 
 	@echo "$(BLUE)Formatting code...$(CLEAR)"
@@ -31,14 +34,6 @@ start_kind: .deployment/kind_start
 dashboard: .deployment/kubeconfig
 	k9s --kubeconfig .deployment/kubeconfig
 
-helm_apply: build_images
-	@echo "$(BLUE)Deploying helm chart...$(CLEAR)"
-	kubectl create namespace $(NAMESPACE) || true
-	kubectl create namespace ingress-nginx || true
-	kubectl create namespace chaos-mesh || true
-	helmfile apply --suppress-secrets
-	@echo "$(BLUE)Deploying helm chart...done$(CLEAR)"
-
 protos:
 	@echo "$(BLUE)Generating protos...$(CLEAR)"
 	protoc --go_out=internal \
@@ -47,14 +42,6 @@ protos:
     	--go-grpc_opt=paths=source_relative \
     	protos/*.proto
 	@echo "$(BLUE)Generating protos...done$(CLEAR)"
-
-dnsedit:
-	KUBE_EDITOR="vim" kubectl -n kube-system edit configmaps coredns -o yaml
-
-helm_sync: build_images
-	@echo "$(BLUE)Syncing updates...$(CLEAR)"
-	helmfile sync --skip-deps
-	@echo "$(BLUE)Syncing updates...done$(CLEAR)"
 
 build_images: .deployment/kind_start
 	@echo "$(BLUE)Building images...$(CLEAR)"
@@ -65,6 +52,7 @@ build_images: .deployment/kind_start
 	mkdir -p .deployment
 	@echo "$(BLUE)Creating kind cluster...$(CLEAR)"
 	kind create cluster --config deploy/kind/cluster.yaml
+	kubectl apply -f deploy/kind/deploy-ingress-nginx.yaml
 	@echo "$(BLUE)Creating kind cluster...done$(CLEAR)"
 	touch .deployment/kind_start
 
@@ -79,8 +67,5 @@ build_images: .deployment/kind_start
 	k9s version
 	docker --version
 	docker buildx version
-	helmfile version -o short
-	helmfile init
-	helmfile deps
 	@echo "$(BLUE)Checking dependencies...done$(CLEAR)"
 	touch .deployment/check_deps

@@ -27,11 +27,6 @@ type ReplicaRPCClient interface {
 	Join(ctx context.Context, in *JoinRequest, opts ...grpc.CallOption) (*JoinResponse, error)
 	Leader(ctx context.Context, in *LeaderRequest, opts ...grpc.CallOption) (*LeaderResponse, error)
 	DemoteVoter(ctx context.Context, in *DemoteVoterRequest, opts ...grpc.CallOption) (*DemoteVoterResponse, error)
-	PauseWrites(ctx context.Context, in *PauseWritesRequest, opts ...grpc.CallOption) (*PauseWritesResponse, error)
-	SendKeys(ctx context.Context, in *SendKeysRequest, opts ...grpc.CallOption) (*SendKeysResponse, error)
-	PurgeKeys(ctx context.Context, in *PurgeKeysRequest, opts ...grpc.CallOption) (*PurgeKeysResponse, error)
-	ResumeWrites(ctx context.Context, in *ResumeWritesRequest, opts ...grpc.CallOption) (*ResumeWritesResponse, error)
-	ReloadConfig(ctx context.Context, in *ReloadConfigRequest, opts ...grpc.CallOption) (*ReloadConfigResponse, error)
 }
 
 type replicaRPCClient struct {
@@ -87,51 +82,6 @@ func (c *replicaRPCClient) DemoteVoter(ctx context.Context, in *DemoteVoterReque
 	return out, nil
 }
 
-func (c *replicaRPCClient) PauseWrites(ctx context.Context, in *PauseWritesRequest, opts ...grpc.CallOption) (*PauseWritesResponse, error) {
-	out := new(PauseWritesResponse)
-	err := c.cc.Invoke(ctx, "/protos.ReplicaRPC/PauseWrites", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *replicaRPCClient) SendKeys(ctx context.Context, in *SendKeysRequest, opts ...grpc.CallOption) (*SendKeysResponse, error) {
-	out := new(SendKeysResponse)
-	err := c.cc.Invoke(ctx, "/protos.ReplicaRPC/SendKeys", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *replicaRPCClient) PurgeKeys(ctx context.Context, in *PurgeKeysRequest, opts ...grpc.CallOption) (*PurgeKeysResponse, error) {
-	out := new(PurgeKeysResponse)
-	err := c.cc.Invoke(ctx, "/protos.ReplicaRPC/PurgeKeys", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *replicaRPCClient) ResumeWrites(ctx context.Context, in *ResumeWritesRequest, opts ...grpc.CallOption) (*ResumeWritesResponse, error) {
-	out := new(ResumeWritesResponse)
-	err := c.cc.Invoke(ctx, "/protos.ReplicaRPC/ResumeWrites", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *replicaRPCClient) ReloadConfig(ctx context.Context, in *ReloadConfigRequest, opts ...grpc.CallOption) (*ReloadConfigResponse, error) {
-	out := new(ReloadConfigResponse)
-	err := c.cc.Invoke(ctx, "/protos.ReplicaRPC/ReloadConfig", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ReplicaRPCServer is the server API for ReplicaRPC service.
 // All implementations must embed UnimplementedReplicaRPCServer
 // for forward compatibility
@@ -141,11 +91,6 @@ type ReplicaRPCServer interface {
 	Join(context.Context, *JoinRequest) (*JoinResponse, error)
 	Leader(context.Context, *LeaderRequest) (*LeaderResponse, error)
 	DemoteVoter(context.Context, *DemoteVoterRequest) (*DemoteVoterResponse, error)
-	PauseWrites(context.Context, *PauseWritesRequest) (*PauseWritesResponse, error)
-	SendKeys(context.Context, *SendKeysRequest) (*SendKeysResponse, error)
-	PurgeKeys(context.Context, *PurgeKeysRequest) (*PurgeKeysResponse, error)
-	ResumeWrites(context.Context, *ResumeWritesRequest) (*ResumeWritesResponse, error)
-	ReloadConfig(context.Context, *ReloadConfigRequest) (*ReloadConfigResponse, error)
 	mustEmbedUnimplementedReplicaRPCServer()
 }
 
@@ -167,21 +112,6 @@ func (UnimplementedReplicaRPCServer) Leader(context.Context, *LeaderRequest) (*L
 }
 func (UnimplementedReplicaRPCServer) DemoteVoter(context.Context, *DemoteVoterRequest) (*DemoteVoterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DemoteVoter not implemented")
-}
-func (UnimplementedReplicaRPCServer) PauseWrites(context.Context, *PauseWritesRequest) (*PauseWritesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PauseWrites not implemented")
-}
-func (UnimplementedReplicaRPCServer) SendKeys(context.Context, *SendKeysRequest) (*SendKeysResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendKeys not implemented")
-}
-func (UnimplementedReplicaRPCServer) PurgeKeys(context.Context, *PurgeKeysRequest) (*PurgeKeysResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PurgeKeys not implemented")
-}
-func (UnimplementedReplicaRPCServer) ResumeWrites(context.Context, *ResumeWritesRequest) (*ResumeWritesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResumeWrites not implemented")
-}
-func (UnimplementedReplicaRPCServer) ReloadConfig(context.Context, *ReloadConfigRequest) (*ReloadConfigResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReloadConfig not implemented")
 }
 func (UnimplementedReplicaRPCServer) mustEmbedUnimplementedReplicaRPCServer() {}
 
@@ -286,96 +216,6 @@ func _ReplicaRPC_DemoteVoter_Handler(srv interface{}, ctx context.Context, dec f
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ReplicaRPC_PauseWrites_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PauseWritesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ReplicaRPCServer).PauseWrites(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/protos.ReplicaRPC/PauseWrites",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ReplicaRPCServer).PauseWrites(ctx, req.(*PauseWritesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ReplicaRPC_SendKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendKeysRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ReplicaRPCServer).SendKeys(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/protos.ReplicaRPC/SendKeys",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ReplicaRPCServer).SendKeys(ctx, req.(*SendKeysRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ReplicaRPC_PurgeKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PurgeKeysRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ReplicaRPCServer).PurgeKeys(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/protos.ReplicaRPC/PurgeKeys",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ReplicaRPCServer).PurgeKeys(ctx, req.(*PurgeKeysRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ReplicaRPC_ResumeWrites_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResumeWritesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ReplicaRPCServer).ResumeWrites(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/protos.ReplicaRPC/ResumeWrites",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ReplicaRPCServer).ResumeWrites(ctx, req.(*ResumeWritesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ReplicaRPC_ReloadConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReloadConfigRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ReplicaRPCServer).ReloadConfig(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/protos.ReplicaRPC/ReloadConfig",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ReplicaRPCServer).ReloadConfig(ctx, req.(*ReloadConfigRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ReplicaRPC_ServiceDesc is the grpc.ServiceDesc for ReplicaRPC service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -402,26 +242,6 @@ var ReplicaRPC_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DemoteVoter",
 			Handler:    _ReplicaRPC_DemoteVoter_Handler,
-		},
-		{
-			MethodName: "PauseWrites",
-			Handler:    _ReplicaRPC_PauseWrites_Handler,
-		},
-		{
-			MethodName: "SendKeys",
-			Handler:    _ReplicaRPC_SendKeys_Handler,
-		},
-		{
-			MethodName: "PurgeKeys",
-			Handler:    _ReplicaRPC_PurgeKeys_Handler,
-		},
-		{
-			MethodName: "ResumeWrites",
-			Handler:    _ReplicaRPC_ResumeWrites_Handler,
-		},
-		{
-			MethodName: "ReloadConfig",
-			Handler:    _ReplicaRPC_ReloadConfig_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

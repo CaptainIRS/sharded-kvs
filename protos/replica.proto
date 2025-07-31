@@ -5,32 +5,41 @@ package protos;
 option go_package = "github.com/CaptainIRS/sharded-kvs/internal";
 
 import "protos/kv.proto";
+import "protos/shard.proto";
 
 service ReplicaRPC {
     rpc Put(PutRequest) returns (PutResponse) {}
     rpc Delete(DeleteRequest) returns (DeleteResponse) {}
     rpc Join(JoinRequest) returns (JoinResponse) {}
-    rpc LeaderID(LeaderIDRequest) returns (LeaderIDResponse) {}
+    rpc Leader(LeaderRequest) returns (LeaderResponse) {}
     rpc DemoteVoter(DemoteVoterRequest) returns (DemoteVoterResponse) {}
+    rpc PauseWrites(PauseWritesRequest) returns (PauseWritesResponse) {}
+    rpc SendKeys(SendKeysRequest) returns (SendKeysResponse) {}
+    rpc PurgeKeys(PurgeKeysRequest) returns (PurgeKeysResponse) {}
+    rpc ResumeWrites(ResumeWritesRequest) returns (ResumeWritesResponse) {}
+    rpc ReloadConfig(ReloadConfigRequest) returns (ReloadConfigResponse) {}
 }
 
 
 message JoinRequest {
-    int32 replica_id = 1;
+    string replica = 1;
     string address = 2;
 }
 
 message JoinResponse {}
 
-message LeaderIDRequest {}
+message LeaderRequest {}
 
-message LeaderIDResponse {
-    string leader_id = 1;
+message LeaderResponse {
+    string leader = 1;
 }
 
 message DemoteVoterRequest {
-    int32 replica_id = 1;
+    string replica = 1;
     string address = 2;
 }
 
 message DemoteVoterResponse {}
+
+message ReloadConfigRequest{}
+message ReloadConfigResponse{}

@@ -4,23 +4,19 @@ metadata:
   labels:
     app.kubernetes.io/name: kvctl
     app.kubernetes.io/managed-by: kustomize
-  name: kvstore-sample
+  name: kvs
+  namespace: kvstore-testing
 spec:
   shards: 1
-  replicas: 1
+  replicas: 3
+  ingressDomain: kvstore-testing.svc.localho.st
   podSpec:
     terminationGracePeriodSeconds: 10
-    setHostnameAsFQDN: true
+    setHostnameAsFQDN: false
     containers:
     - name: shard
       image: sharded-kvs-shard
       imagePullPolicy: Never
-      securityContext:
-        allowPrivilegeEscalation: true
-        capabilities:
-          add:
-          - NET_RAW
-          - NET_ADMIN
       ports:
       - name: kvrpc
         containerPort: 8080
@@ -29,35 +25,36 @@ spec:
       - name: raftrpc
         containerPort: 8082
       env:
-      - name: SHARD
-        value: "{{ $i }}"
-      - name: REPLICA
+      - name: REPLICA_INDEX
         valueFrom:
           fieldRef:
             fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
-      - name: IP_ADDRESS
-        valueFrom:
-          fieldRef:
-            fieldPath: status.podIP
       command:
       - bash
       - -c
       - |
         #!/bin/bash
-        echo "Starting shard-$(SHARD)-replica-$(REPLICA) with IP $(IP_ADDRESS)"
+        IFS='.' read REPLICA SHARD NAMESPACE SVC CLUSTERDOMAIN <<< "$(hostname --fqdn)"
+        IP_ADDRESS=$(hostname -I)
+        echo "Starting $(hostname --fqdn) with IP $IP_ADDRESS"
         for i in $(seq 1 30); do
           echo "Waiting for DNS. Retries: $i"
-          nslookup shard-$(SHARD)-replica-$(REPLICA).shard-$(SHARD).{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }} >/dev/null && break
+          nslookup "$(hostname --fqdn)" >/dev/null && break
           sleep 2
         done
-        setcap cap_net_raw,cap_net_admin+eip /shard
 
-        exec /shard -shard=$(SHARD) -replica=$(REPLICA) -shards={{ $.Values.shards }} -replicas={{ $.Values.replicas }} -address=$(IP_ADDRESS) &
+        if [[ $REPLICA_INDEX -eq 0 ]]; then
+          BOOTSTRAP=1
+        else
+          BOOTSTRAP=0
+        fi
+
+        exec /shard -shard=$SHARD -replica=$REPLICA -address=$IP_ADDRESS -shouldBootstrap=$BOOTSTRAP &
         pid=$!
         echo $pid > /shard.pid
         echo "Shard started as pid $pid"
         trap_sigterm() {
-          echo "Received SIGTERM, killing shard-$(SHARD)-replica-$(REPLICA)"
+          echo "Received SIGTERM, killing $REPLICA.$SHARD"
           kill $pid
         }
 
@@ -71,3 +68,9 @@ spec:
       volumeMounts:
       - name: data-shard
         mountPath: /data
+      - name: config-shard
+        mountPath: /etc/config
+    volumes:
+      - name: config-shard
+        configMap:
+          name: kvs-config

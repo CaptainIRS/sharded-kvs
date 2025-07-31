@@ -1,0 +1,73 @@
+stateDiagram-v2
+    [*] --> Initializing : Controller starts
+    
+    Initializing --> Initializing : Creating StatefulSets\nWaiting for Raft consensus
+    Initializing --> Stable : All shards ready\nwith leaders elected
+    Initializing --> Failed : StatefulSet creation fails\nor timeout
+    
+    Stable --> Stable : Regular health checks\nNo scaling needed
+    Stable --> ScalingUp : spec.shards > status.currentShards
+    Stable --> ScalingDown : spec.shards < status.currentShards
+    Stable --> Failed : Shard health check fails
+    
+    ScalingUp --> ScalingUp : Creating new StatefulSets\nWaiting for new shards
+    ScalingUp --> Redistributing : New shards ready\nInitialize redistribution state
+    ScalingUp --> Failed : New shard creation fails
+    
+    ScalingDown --> ScalingDown : Preparing for scale down\nValidating existing shards
+    ScalingDown --> Redistributing : All shards healthy\nInitialize redistribution state
+    ScalingDown --> Failed : Shard validation fails
+    
+    Redistributing --> RedistPreparing : Start redistribution process
+    
+    state Redistributing {
+        [*] --> RedistPreparing
+        
+        RedistPreparing --> RedistPreparing : Setting read-only mode\nTaking consistent snapshots\nCalculating redistribution plan
+        RedistPreparing --> RedistMoving : Snapshots complete\nPlan calculated
+        RedistPreparing --> RedistFailed : Snapshot or planning fails
+        
+        RedistMoving --> RedistMoving : Moving key batches\nUpdating progress
+        RedistMoving --> RedistFinalizing : All keys moved
+        RedistMoving --> RedistFailed : Key movement fails
+        
+        RedistFinalizing --> RedistFinalizing : Verifying data consistency\nRemoving old shards (if scaling down)\nRe-enabling writes
+        RedistFinalizing --> RedistComplete : Consistency verified\nWrites re-enabled
+        RedistFinalizing --> RedistFailed : Consistency check fails
+        
+        RedistComplete --> [*]
+        RedistFailed --> [*]
+    }
+    
+    Redistributing --> Finalizing : Redistribution complete
+    Redistributing --> Failed : Redistribution failed
+    
+    Finalizing --> Finalizing : Cleaning up redistribution state\nUpdating current shard count
+    Finalizing --> Stable : Cleanup complete
+    Finalizing --> Failed : Cleanup fails
+    
+    Failed --> Failed : Exponential backoff retry
+    Failed --> Stable : Manual intervention\nor retry succeeds
+    Failed --> Initializing : Reset requested
+    
+    note right of Stable
+        - Regular health monitoring
+        - Shard leader election monitoring
+        - Ready for scaling operations
+    end note
+    
+    note right of Redistributing
+        Critical Phase:
+        - Cluster in read-only mode
+        - Atomic key movement
+        - Consistency verification
+        - No partial states
+    end note
+    
+    note left of Failed
+        Recovery Actions:
+        - Rollback partial changes
+        - Alert operators
+        - Retry with backoff
+        - Manual intervention possible
+    end note

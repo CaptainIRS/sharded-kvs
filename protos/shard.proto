@@ -10,4 +10,32 @@ service ShardRPC {
     rpc Get(GetRequest) returns (GetResponse) {}
     rpc Put(PutRequest) returns (PutResponse) {}
     rpc Delete(DeleteRequest) returns (DeleteResponse) {}
+    rpc PauseWrites(PauseWritesRequest) returns (PauseWritesResponse) {}
+    rpc SendKeys(SendKeysRequest) returns (SendKeysResponse) {}
+    rpc PurgeKeys(PurgeKeysRequest) returns (PurgeKeysResponse) {}
+    rpc ResumeWrites(ResumeWritesRequest) returns (ResumeWritesResponse) {}
+}
+
+message PauseWritesRequest {}
+message PauseWritesResponse {
+    bool is_paused = 1;
+}
+
+message SendKeysRequest {}
+message SendKeysResponse {
+    bool is_sending = 1;
+    int32 keys_sent = 2;
+    int32 total_keys = 3;
+}
+
+message PurgeKeysRequest {}
+message PurgeKeysResponse {
+    bool is_purging = 1;
+    int32 keys_purged = 2;
+    int32 total_keys = 3;
+}
+
+message ResumeWritesRequest {}
+message ResumeWritesResponse {
+    bool is_resumed = 1;
 }

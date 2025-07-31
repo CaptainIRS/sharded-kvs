@@ -236,3 +236,15 @@ mv $(1) $(1)-$(3) ;\
 } ;\
 ln -sf $(1)-$(3) $(1)
 endef
+
+.PHONY: protos
+protos:
+	@echo "$(BLUE)Generating protos...$(CLEAR)"
+	protoc --go_out=internal \
+    	--go-grpc_out=internal \
+    	--go_opt=paths=source_relative \
+    	--go-grpc_opt=paths=source_relative \
+    	protos/*.proto
+	@echo "$(BLUE)Generating protos...done$(CLEAR)"
+
+

@@ -78,8 +78,10 @@ spec:
         - name: raftrpc
           containerPort: 8082
         env:
-        - name: SHARD
-          value: "{{ $i }}"
+        - name: SHARD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.labels['group']
         - name: REPLICA
           valueFrom:
             fieldRef:
@@ -93,10 +95,15 @@ spec:
         - -c
         - |
           #!/bin/bash
-          echo "Starting shard-$(SHARD)-replica-$(REPLICA) with IP $(IP_ADDRESS)"
+          FQDN=$(hostname --fqdn)
+          IP_ADDRESS=$(hostname -I)
+          echo "FQDN is $FQDN"
+          IFS='.' read -r REPLICA SHARD NAMESPACE SVC CLUSTERDOMAIN <<< "$FQDN"
+          echo "$REPLICA $SHARD $NAMESPACE $SVC $CLUSTERDOMAIN"
+          echo "Starting $REPLICA with IP $IP_ADDRESS"
           for i in $(seq 1 30); do
             echo "Waiting for DNS. Retries: $i"
-            nslookup shard-$(SHARD)-replica-$(REPLICA).shard-$(SHARD).{{ $.Release.Namespace }}.svc.{{ $.Values.clusterDomain }} >/dev/null && break
+            nslookup "$FQDN" >/dev/null && break
             sleep 2
           done
           setcap cap_net_raw,cap_net_admin+eip /shard
@@ -120,6 +127,7 @@ spec:
         volumeMounts:
         - name: data-shard
           mountPath: /data
+        
   volumeClaimTemplates:
   - metadata:
       name: data-shard

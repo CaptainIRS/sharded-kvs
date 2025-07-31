@@ -19,7 +19,8 @@ const (
 )
 
 type KVStore struct {
-	raft *raft.Raft
+	raft      *raft.Raft
+	snapshots *raft.FileSnapshotStore
 
 	mutex sync.Mutex
 	store *map[string]string
@@ -77,24 +78,49 @@ func (k *KVStore) Delete(key string) error {
 	return future.Error()
 }
 
-func (k *KVStore) Open(dir, ip string, raftPort, shardId, replicaId int, shouldBootstrap bool) error {
+func (k *KVStore) Open(dir, ip string, raftPort int, shard, replica string, shouldBootstrap bool) error {
 	var fsm = NewKVFsm(k.store)
-	id := fmt.Sprintf("shard-%d-replica-%d.shard-%d.kvs.svc.localho.st:%d", shardId, replicaId, shardId, raftPort)
+	id := fmt.Sprintf("%s.%s:%d", replica, shard, raftPort)
 	address := fmt.Sprintf("%s:%d", ip, raftPort)
-	r, err := common.SetupRaft(dir, id, address, shouldBootstrap, fsm)
+	r, s, err := common.SetupRaft(dir, id, address, shouldBootstrap, fsm)
 	if err != nil {
 		return err
 	}
 	k.raft = r
+	k.snapshots = s
 	return nil
+}
+
+func (k *KVStore) Snapshot() (map[string]string, error) {
+	if future := k.raft.Snapshot(); future.Error() != nil {
+		if future.Error() == raft.ErrNothingNewToSnapshot {
+			log.Printf("Nothing new to snapshot. Returning empty map\n")
+			return make(map[string]string), nil
+		}
+		return make(map[string]string), fmt.Errorf("could not perform snapshot: %s", future.Error())
+	} else {
+		if _, readCloser, err := future.Open(); err != nil {
+			return make(map[string]string), fmt.Errorf("could not open snapshot: %s", future.Error())
+		} else {
+			if bytes, err := io.ReadAll(readCloser); err != nil {
+				return make(map[string]string), fmt.Errorf("could not read snapshot: %s", future.Error())
+			} else {
+				var kvFsmSnapshot pb.KVFSMSnapshot
+				if err := proto.Unmarshal(bytes, &kvFsmSnapshot); err != nil {
+					return make(map[string]string), fmt.Errorf("could not parse snapshot: %s", future.Error())
+				}
+				return kvFsmSnapshot.KvStore, nil
+			}
+		}
+	}
 }
 
 func (k *KVStore) Close() error {
 	return common.ShutdownRaft(k.raft)
 }
 
-func (k *KVStore) Join(ip string, raftPort, shardId, replicaId int) error {
-	id := fmt.Sprintf("shard-%d-replica-%d.shard-%d.kvs.svc.localho.st:%d", shardId, replicaId, shardId, raftPort)
+func (k *KVStore) Join(ip string, raftPort int, shard, replica string) error {
+	id := fmt.Sprintf("%s.%s:%d", replica, shard, raftPort)
 	address := fmt.Sprintf("%s:%d", ip, raftPort)
 
 	if k.raft.State() != raft.Leader {
@@ -120,8 +146,8 @@ func (k *KVStore) Join(ip string, raftPort, shardId, replicaId int) error {
 	return common.JoinReplica(k.raft, id, address)
 }
 
-func (k *KVStore) DemoteVoter(ip string, raftPort, shardId, replicaId int) error {
-	id := fmt.Sprintf("shard-%d-replica-%d.shard-%d.kvs.svc.localho.st:%d", shardId, replicaId, shardId, raftPort)
+func (k *KVStore) DemoteVoter(ip string, raftPort int, shard, replica string) error {
+	id := fmt.Sprintf("%s.%s:%d", replica, shard, raftPort)
 	if k.raft.State() != raft.Leader {
 		return nil
 	}
@@ -132,8 +158,9 @@ func (k *KVStore) HasLatestLogs() bool {
 	return k.raft.AppliedIndex() == k.raft.LastIndex()
 }
 
-func (k *KVStore) Leader() (raft.ServerAddress, raft.ServerID) {
-	return k.raft.LeaderWithID()
+func (k *KVStore) Leader() string {
+	_, leaderId := k.raft.LeaderWithID()
+	return string(leaderId)
 }
 
 type fsmSnapshot struct {

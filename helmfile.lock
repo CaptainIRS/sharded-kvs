@@ -3,8 +3,5 @@ dependencies:
   - name: chaos-mesh
     repository: https://charts.chaos-mesh.org
     version: 2.6.3
-  - name: ingress-nginx
-    repository: https://kubernetes.github.io/ingress-nginx
-    version: 4.10.0
-digest: sha256:f56480a849f5415165327552fe4d1cf0d6565e5210c84cf12095779916022cd4
-generated: "2025-07-22T11:50:46.900149+05:30"
+digest: sha256:25644a36fd7f8432275764b5ea5a8335aa37c671352a024b982e27d6ac43380e
+generated: "2025-07-29T08:36:55.840105+05:30"
