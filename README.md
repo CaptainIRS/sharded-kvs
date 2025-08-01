@@ -65,6 +65,8 @@ Inside the `kvctl` folder, run the following to setup the controller.
 - `make docker-build IMG=controller:latest`
 - `kind load docker-image controller:latest -n sharded-kvs-cluster`
 - `make deploy IMG=controller:latest`
+- Edit `kvctl/config/samples/kvctl_v1_kvstore.yaml` for the `KVStore` config
+- `kubectl apply -f kvctl/config/samples/kvctl_v1_kvstore.yaml`
 
 ### Viewing Logs/Traces
 
