@@ -8,7 +8,7 @@
 * **Sharding**: The key-value store is sharded across multiple nodes using [Consistent Hashing with Bounded Loads](https://research.google/blog/consistent-hashing-with-bounded-loads/).
 * **Replication**: The key-value store supports replication across multiple replicas for each shard. The number of replicas can be configured (default: 3). It uses the [Raft Consensus Algorithm](https://raft.github.io/).
 * **Load Balancing**: The key-value store uses a round-robin load balancer to distribute the requests across the replicas using the [NGINX Ingress Controller](https://kubernetes.github.io/ingress-nginx/). Leader forwarding is used to forward the requests to the leader replica.
-* **Scalability**: The key-value store can be deployed on Kubernetes with a configurable number of shards and replicas and can be changed dynamically using the [Helm](https://helm.sh/) values file. (Run `make deploy` to apply the changes after updating the [helmfile.yaml](./helmfile.yaml) file)
+* **Scalability**: The key-value store can be deployed on Kubernetes with a configurable number of shards and replicas and can be changed dynamically using the `KVStore` custom resource managed by the `kvctl` controller.
 * **Upgradability**: The key-value store can be upgraded without any downtime using the [RollingUpdate](https://kubernetes.io/docs/tutorials/kubernetes-basics/update/update-intro/) strategy in Kubernetes. (Run `make sync` after updating the source code).
 * **Fault Simulation**: The system can simulate network partitions and shard failures using [Chaos Mesh](https://chaos-mesh.org/). Visit http://chaos-dashboard.svc.localho.st/chaos-mesh/ to access the Chaos Mesh dashboard and experiment with different fault scenarios.
 * **Tracing**: The system provides logs of traffic among all the shards logged to the standard output by capturing packets using eBPF. The logs can be viewed using the `stern` tool. (Run `stern -l group=shard-0 -n=kvs -t=short` to view the logs of the shard-0 replica group).
@@ -29,8 +29,7 @@
 2. Install [Docker Buildx](https://github.com/docker/buildx?tab=readme-ov-file#installing).
 3. Install [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation).
 4. Install [Kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl).
-5. Install [Helmfile](https://helmfile.readthedocs.io/en/latest/#installation).
-6. Install `stern`:
+5. Install `stern`:
     ```bash
     go install github.com/stern/stern@latest
     ```
@@ -60,6 +59,12 @@ Run `make "target"` where `"target"` is one of the following:
 - `dashboard`: Open the Kubernetes dashboard.
 - `proto`: Generate the Go code from the Protobuf definitions.
 - `fmt`: Format the Go code and helm templates before committing.
+
+Inside the `kvctl` folder, run the following to setup the controller.
+- `make generate manifests`
+- `make docker-build IMG=controller:latest`
+- `kind load docker-image controller:latest -n sharded-kvs-cluster`
+- `make deploy IMG=controller:latest`
 
 ### Viewing Logs/Traces
 
