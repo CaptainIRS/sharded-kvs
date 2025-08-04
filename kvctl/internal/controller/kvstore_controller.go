@@ -23,6 +23,7 @@ import (
 	"maps"
 	"math/rand"
 	"slices"
+	"strconv"
 	"time"
 
 	pb "github.com/CaptainIRS/sharded-kvs/internal/protos"
@@ -166,6 +167,10 @@ func (r *KVStoreReconciler) UpdateConfigMap(ctx context.Context, kvStore kvctlv1
 					"config.yaml": configYaml,
 				},
 			}
+			if err := ctrl.SetControllerReference(&kvStore, &configMap, r.Scheme); err != nil {
+				log.Error(err, "failed to set controller reference for configmap", "configMap", configMap)
+				return err
+			}
 			if err := r.Create(ctx, &configMap); err != nil {
 				log.Error(err, "failed to create ConfigMap")
 				return err
@@ -192,7 +197,6 @@ func (r *KVStoreReconciler) UpdateConfigMap(ctx context.Context, kvStore kvctlv1
 func (r *KVStoreReconciler) SpinUpShards(ctx context.Context, kvStore kvctlv1.KVStore) error {
 	log := logf.FromContext(ctx)
 	name := kvStore.Name
-
 	for i := kvStore.Status.CurrentShards; i < kvStore.Status.TargetShards; i++ {
 		shard := &appsv1.StatefulSet{
 			ObjectMeta: metav1.ObjectMeta{
@@ -219,6 +223,9 @@ func (r *KVStoreReconciler) SpinUpShards(ctx context.Context, kvStore kvctlv1.KV
 						Labels: map[string]string{
 							"app":   kvStore.Name,
 							"group": fmt.Sprintf("%s-shard-%d", name, i),
+						},
+						Annotations: map[string]string{
+							"replicas": strconv.Itoa(int(kvStore.Spec.Replicas)),
 						},
 					},
 					Spec: *kvStore.Spec.PodSpec.DeepCopy(),
@@ -402,10 +409,8 @@ func (r *KVStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	/*
-
 	for _, shard := range shardList.Items {
-		if shard.Spec.Replicas != &kvStore.Spec.Replicas {
+		if *shard.Spec.Replicas != kvStore.Spec.Replicas {
 			if shard.Spec.Template.ObjectMeta.Annotations == nil {
 				shard.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
 			}
@@ -418,8 +423,6 @@ func (r *KVStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 		}
 	}
-
-	*/
 
 	if kvStore.Status.Phase == kvctlv1.PhaseNormal {
 		if len(shardList.Items) < int(kvStore.Spec.Shards) {
@@ -466,10 +469,8 @@ func (r *KVStoreReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		err = r.PrepareScale(ctx, kvStore)
 	case kvctlv1.PhaseStoppingWrites:
 		err = r.StopWrites(ctx, kvStore)
-	case kvctlv1.PhaseSendingKeys:
-		err = r.SendKeys(ctx, kvStore)
-	case kvctlv1.PhasePurgingKeys:
-		err = r.PurgeKeys(ctx, kvStore)
+	case kvctlv1.PhaseRedistributingKeys:
+		err = r.RedistributeKeys(ctx, kvStore)
 	case kvctlv1.PhaseResumingWrites:
 		err = r.ResumeWrites(ctx, kvStore)
 	case kvctlv1.PhaseFinalizingScale:
@@ -491,7 +492,6 @@ func (r *KVStoreReconciler) PrepareScale(ctx context.Context, kvStore kvctlv1.KV
 		log.Info(fmt.Sprintf("%d/%d replicas ready", shard.Status.ReadyReplicas, *shard.Spec.Replicas))
 		if shard.Status.ReadyReplicas != *shard.Spec.Replicas {
 			kvStore.Status.Message = "Waiting for shards to be ready"
-			kvStore.Status.LastTransition = metav1.Now()
 			return r.Status().Update(ctx, &kvStore)
 		}
 	}
@@ -527,121 +527,60 @@ func (r *KVStoreReconciler) StopWrites(ctx context.Context, kvStore kvctlv1.KVSt
 	for _, shard := range shards {
 		if res, err := GetShardClient(shard).PauseWrites(ctx, &pb.PauseWritesRequest{}); err != nil {
 			kvStore.Status.Message = fmt.Sprintf("Failed to pause writes: %s. Retrying", err)
-			kvStore.Status.LastTransition = metav1.Now()
 			r.Status().Update(ctx, &kvStore)
 			return err
 		} else {
 			if !res.IsPaused {
 				kvStore.Status.Message = "Waiting for shards to pause writes"
-				kvStore.Status.LastTransition = metav1.Now()
 				return r.Status().Update(ctx, &kvStore)
 			}
 		}
 	}
-	kvStore.Status.Phase = kvctlv1.PhaseSendingKeys
+	kvStore.Status.Phase = kvctlv1.PhaseRedistributingKeys
 	kvStore.Status.Message = "Starting to redistribute keys"
 	log.Info("Writes disabled, starting to redistribute keys")
 	kvStore.Status.LastTransition = metav1.Now()
 	return r.Status().Update(ctx, &kvStore)
 }
 
-func (r *KVStoreReconciler) SendKeys(ctx context.Context, kvStore kvctlv1.KVStore) error {
+func (r *KVStoreReconciler) RedistributeKeys(ctx context.Context, kvStore kvctlv1.KVStore) error {
 	log := logf.FromContext(ctx)
 	shards := r.GetShards(ctx, kvStore)
-	keysSent := 0
-	keysToBeSent := 0
-	pending := false
+	pendingKeys := 0
 	for _, shard := range shards {
-		if res, err := GetShardClient(shard).SendKeys(ctx, &pb.SendKeysRequest{}); err != nil {
+		if res, err := GetShardClient(shard).RedistributeKeys(ctx, &pb.RedistributeKeysRequest{}); err != nil {
 			kvStore.Status.Message = fmt.Sprintf("Failed to initiate key redistribution: %s", err)
-			kvStore.Status.LastTransition = metav1.Now()
 			r.Status().Update(ctx, &kvStore)
 			return err
 		} else {
-			if !res.IsSending {
-				pending = true
-			}
-			keysSent += int(res.KeysSent)
-			keysToBeSent += int(res.TotalKeys)
+			pendingKeys += int(res.PendingKeys)
 		}
 	}
-	log.Info(fmt.Sprintf("Keys redistributed: %d/%d", keysSent, keysToBeSent))
-	if keysSent == keysToBeSent && !pending {
-		kvStore.Status.Phase = kvctlv1.PhasePurgingKeys
-		kvStore.Status.Message = "Starting to purge redundant keys"
-	} else {
-		kvStore.Status.Message = fmt.Sprintf("%.2f%% keys redistributed", float32(keysSent)/float32(keysToBeSent)*100)
-	}
-	kvStore.Status.LastTransition = metav1.Now()
-	return r.Status().Update(ctx, &kvStore)
-}
-
-func (r *KVStoreReconciler) PurgeKeys(ctx context.Context, kvStore kvctlv1.KVStore) error {
-	log := logf.FromContext(ctx)
-	shards := r.GetShards(ctx, kvStore)
-	keysPurged := 0
-	keysToBePurged := 0
-	pending := false
-	for _, shard := range shards {
-		if res, err := GetShardClient(shard).PurgeKeys(ctx, &pb.PurgeKeysRequest{}); err != nil {
-			kvStore.Status.Message = fmt.Sprintf("Failed to initiate purge: %s", err)
-			kvStore.Status.LastTransition = metav1.Now()
-			r.Status().Update(ctx, &kvStore)
-			return err
-		} else {
-			if !res.IsPurging {
-				pending = true
-			}
-			keysPurged += int(res.KeysPurged)
-			keysToBePurged += int(res.TotalKeys)
-		}
-	}
-	log.Info(fmt.Sprintf("Keys purged: %d/%d", keysPurged, keysToBePurged))
-	if keysPurged == keysToBePurged && !pending {
-		kvStore.Status.Phase = kvctlv1.PhaseResumingWrites
-		kvStore.Status.Message = "Starting to resume writes"
+	log.Info(fmt.Sprintf("Pending keys to be redistributed: %d", pendingKeys))
+	if pendingKeys == 0 {
+		kvStore.Status.Phase = kvctlv1.PhaseFinalizingScale
+		kvStore.Status.Message = "Starting to finalize scaling operation"
+		log.Info("Keys redistributed. Starting finalization")
 		kvStore.Status.LastTransition = metav1.Now()
 		return r.Status().Update(ctx, &kvStore)
 	} else {
-		kvStore.Status.Message = fmt.Sprintf("%.2f%% keys purged", float32(keysPurged)/float32(keysToBePurged)*100)
-		return nil
+		kvStore.Status.Message = fmt.Sprintf("Pending keys to be redistributed: %d", pendingKeys)
 	}
-}
-
-func (r *KVStoreReconciler) ResumeWrites(ctx context.Context, kvStore kvctlv1.KVStore) error {
-	log := logf.FromContext(ctx)
-	shards := r.GetShards(ctx, kvStore)
-	for _, shard := range shards {
-		if res, err := GetShardClient(shard).ResumeWrites(ctx, &pb.ResumeWritesRequest{}); err != nil {
-			kvStore.Status.Message = fmt.Sprintf("Failed to resume writes: %s. Retrying", err)
-			kvStore.Status.LastTransition = metav1.Now()
-			r.Status().Update(ctx, &kvStore)
-			return err
-		} else {
-			if !res.IsResumed {
-				kvStore.Status.Message = "Waiting for shards to resume writes"
-				kvStore.Status.LastTransition = metav1.Now()
-				return r.Status().Update(ctx, &kvStore)
-			}
-		}
-	}
-	kvStore.Status.Phase = kvctlv1.PhaseFinalizingScale
-	kvStore.Status.Message = "Starting to finalize scaling operation"
-	log.Info("Resumed writes. Starting finalization")
-	kvStore.Status.LastTransition = metav1.Now()
-
 	return r.Status().Update(ctx, &kvStore)
 }
 
 func (r *KVStoreReconciler) FinalizeScale(ctx context.Context, kvStore kvctlv1.KVStore) error {
+	log := logf.FromContext(ctx)
 	if kvStore.Status.TargetShards > kvStore.Status.CurrentShards {
-		kvStore.Status.Phase = kvctlv1.PhaseNormal
-		kvStore.Status.Message = "Ready"
+		kvStore.Status.Phase = kvctlv1.PhaseResumingWrites
+		kvStore.Status.Message = "Starting to resume writes"
+		log.Info("Finalized shard resources. Starting to resume writes")
 		kvStore.Status.CurrentShards = kvStore.Status.TargetShards
 		kvStore.Status.LastTransition = metav1.Now()
 		if err := r.UpdateConfigMap(ctx, kvStore); err != nil {
 			return err
 		}
+		return r.Status().Update(ctx, &kvStore)
 	}
 	groupsToBeDeleted := make([]string, 0)
 	for i := range kvStore.Status.CurrentShards {
@@ -676,13 +615,39 @@ func (r *KVStoreReconciler) FinalizeScale(ctx context.Context, kvStore kvctlv1.K
 			}
 		}
 	}
-	kvStore.Status.Phase = kvctlv1.PhaseNormal
-	kvStore.Status.Message = "Ready"
+
+	kvStore.Status.Phase = kvctlv1.PhaseResumingWrites
+	kvStore.Status.Message = "Starting to resume writes"
+	log.Info("Finalized shard resources. Starting to resume writes")
 	kvStore.Status.CurrentShards = kvStore.Status.TargetShards
 	kvStore.Status.LastTransition = metav1.Now()
 	if err := r.UpdateConfigMap(ctx, kvStore); err != nil {
 		return err
 	}
+	return r.Status().Update(ctx, &kvStore)
+}
+
+func (r *KVStoreReconciler) ResumeWrites(ctx context.Context, kvStore kvctlv1.KVStore) error {
+	log := logf.FromContext(ctx)
+	shards := r.GetShards(ctx, kvStore)
+	for _, shard := range shards {
+		if res, err := GetShardClient(shard).ResumeWrites(ctx, &pb.ResumeWritesRequest{}); err != nil {
+			kvStore.Status.Message = fmt.Sprintf("Failed to resume writes: %s. Retrying", err)
+			r.Status().Update(ctx, &kvStore)
+			return err
+		} else {
+			if !res.IsResumed {
+				kvStore.Status.Message = "Waiting for shards to resume writes"
+				return r.Status().Update(ctx, &kvStore)
+			}
+		}
+	}
+	kvStore.Status.Phase = kvctlv1.PhaseNormal
+	kvStore.Status.Message = "Ready"
+	log.Info("Writes resumed. Scaling operation complete")
+	kvStore.Status.CurrentShards = kvStore.Status.TargetShards
+	kvStore.Status.LastTransition = metav1.Now()
+
 	return r.Status().Update(ctx, &kvStore)
 }
 

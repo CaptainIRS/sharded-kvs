@@ -13,6 +13,10 @@ spec:
   podSpec:
     terminationGracePeriodSeconds: 10
     setHostnameAsFQDN: false
+    initContainers:
+      - name: init-dns
+        image: busybox
+        command: ['sh', '-c', "until nslookup kube-dns.kube-system.svc.localho.st; do echo Waiting for DNS to resolve; sleep 2; done"]
     containers:
     - name: shard
       image: sharded-kvs-shard

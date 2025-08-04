@@ -23,11 +23,10 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ShardRPCClient interface {
 	Get(ctx context.Context, in *GetRequest, opts ...grpc.CallOption) (*GetResponse, error)
-	Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error)
+	Put(ctx context.Context, in *InternalPutRequest, opts ...grpc.CallOption) (*PutResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	PauseWrites(ctx context.Context, in *PauseWritesRequest, opts ...grpc.CallOption) (*PauseWritesResponse, error)
-	SendKeys(ctx context.Context, in *SendKeysRequest, opts ...grpc.CallOption) (*SendKeysResponse, error)
-	PurgeKeys(ctx context.Context, in *PurgeKeysRequest, opts ...grpc.CallOption) (*PurgeKeysResponse, error)
+	RedistributeKeys(ctx context.Context, in *RedistributeKeysRequest, opts ...grpc.CallOption) (*RedistributeKeysResponse, error)
 	ResumeWrites(ctx context.Context, in *ResumeWritesRequest, opts ...grpc.CallOption) (*ResumeWritesResponse, error)
 }
 
@@ -48,7 +47,7 @@ func (c *shardRPCClient) Get(ctx context.Context, in *GetRequest, opts ...grpc.C
 	return out, nil
 }
 
-func (c *shardRPCClient) Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error) {
+func (c *shardRPCClient) Put(ctx context.Context, in *InternalPutRequest, opts ...grpc.CallOption) (*PutResponse, error) {
 	out := new(PutResponse)
 	err := c.cc.Invoke(ctx, "/protos.ShardRPC/Put", in, out, opts...)
 	if err != nil {
@@ -75,18 +74,9 @@ func (c *shardRPCClient) PauseWrites(ctx context.Context, in *PauseWritesRequest
 	return out, nil
 }
 
-func (c *shardRPCClient) SendKeys(ctx context.Context, in *SendKeysRequest, opts ...grpc.CallOption) (*SendKeysResponse, error) {
-	out := new(SendKeysResponse)
-	err := c.cc.Invoke(ctx, "/protos.ShardRPC/SendKeys", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *shardRPCClient) PurgeKeys(ctx context.Context, in *PurgeKeysRequest, opts ...grpc.CallOption) (*PurgeKeysResponse, error) {
-	out := new(PurgeKeysResponse)
-	err := c.cc.Invoke(ctx, "/protos.ShardRPC/PurgeKeys", in, out, opts...)
+func (c *shardRPCClient) RedistributeKeys(ctx context.Context, in *RedistributeKeysRequest, opts ...grpc.CallOption) (*RedistributeKeysResponse, error) {
+	out := new(RedistributeKeysResponse)
+	err := c.cc.Invoke(ctx, "/protos.ShardRPC/RedistributeKeys", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -107,11 +97,10 @@ func (c *shardRPCClient) ResumeWrites(ctx context.Context, in *ResumeWritesReque
 // for forward compatibility
 type ShardRPCServer interface {
 	Get(context.Context, *GetRequest) (*GetResponse, error)
-	Put(context.Context, *PutRequest) (*PutResponse, error)
+	Put(context.Context, *InternalPutRequest) (*PutResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	PauseWrites(context.Context, *PauseWritesRequest) (*PauseWritesResponse, error)
-	SendKeys(context.Context, *SendKeysRequest) (*SendKeysResponse, error)
-	PurgeKeys(context.Context, *PurgeKeysRequest) (*PurgeKeysResponse, error)
+	RedistributeKeys(context.Context, *RedistributeKeysRequest) (*RedistributeKeysResponse, error)
 	ResumeWrites(context.Context, *ResumeWritesRequest) (*ResumeWritesResponse, error)
 	mustEmbedUnimplementedShardRPCServer()
 }
@@ -123,7 +112,7 @@ type UnimplementedShardRPCServer struct {
 func (UnimplementedShardRPCServer) Get(context.Context, *GetRequest) (*GetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
 }
-func (UnimplementedShardRPCServer) Put(context.Context, *PutRequest) (*PutResponse, error) {
+func (UnimplementedShardRPCServer) Put(context.Context, *InternalPutRequest) (*PutResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Put not implemented")
 }
 func (UnimplementedShardRPCServer) Delete(context.Context, *DeleteRequest) (*DeleteResponse, error) {
@@ -132,11 +121,8 @@ func (UnimplementedShardRPCServer) Delete(context.Context, *DeleteRequest) (*Del
 func (UnimplementedShardRPCServer) PauseWrites(context.Context, *PauseWritesRequest) (*PauseWritesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PauseWrites not implemented")
 }
-func (UnimplementedShardRPCServer) SendKeys(context.Context, *SendKeysRequest) (*SendKeysResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SendKeys not implemented")
-}
-func (UnimplementedShardRPCServer) PurgeKeys(context.Context, *PurgeKeysRequest) (*PurgeKeysResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PurgeKeys not implemented")
+func (UnimplementedShardRPCServer) RedistributeKeys(context.Context, *RedistributeKeysRequest) (*RedistributeKeysResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RedistributeKeys not implemented")
 }
 func (UnimplementedShardRPCServer) ResumeWrites(context.Context, *ResumeWritesRequest) (*ResumeWritesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResumeWrites not implemented")
@@ -173,7 +159,7 @@ func _ShardRPC_Get_Handler(srv interface{}, ctx context.Context, dec func(interf
 }
 
 func _ShardRPC_Put_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PutRequest)
+	in := new(InternalPutRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -185,7 +171,7 @@ func _ShardRPC_Put_Handler(srv interface{}, ctx context.Context, dec func(interf
 		FullMethod: "/protos.ShardRPC/Put",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ShardRPCServer).Put(ctx, req.(*PutRequest))
+		return srv.(ShardRPCServer).Put(ctx, req.(*InternalPutRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -226,38 +212,20 @@ func _ShardRPC_PauseWrites_Handler(srv interface{}, ctx context.Context, dec fun
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ShardRPC_SendKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SendKeysRequest)
+func _ShardRPC_RedistributeKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RedistributeKeysRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ShardRPCServer).SendKeys(ctx, in)
+		return srv.(ShardRPCServer).RedistributeKeys(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/protos.ShardRPC/SendKeys",
+		FullMethod: "/protos.ShardRPC/RedistributeKeys",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ShardRPCServer).SendKeys(ctx, req.(*SendKeysRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ShardRPC_PurgeKeys_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PurgeKeysRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ShardRPCServer).PurgeKeys(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/protos.ShardRPC/PurgeKeys",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ShardRPCServer).PurgeKeys(ctx, req.(*PurgeKeysRequest))
+		return srv.(ShardRPCServer).RedistributeKeys(ctx, req.(*RedistributeKeysRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -304,12 +272,8 @@ var ShardRPC_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ShardRPC_PauseWrites_Handler,
 		},
 		{
-			MethodName: "SendKeys",
-			Handler:    _ShardRPC_SendKeys_Handler,
-		},
-		{
-			MethodName: "PurgeKeys",
-			Handler:    _ShardRPC_PurgeKeys_Handler,
+			MethodName: "RedistributeKeys",
+			Handler:    _ShardRPC_RedistributeKeys_Handler,
 		},
 		{
 			MethodName: "ResumeWrites",

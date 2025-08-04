@@ -8,11 +8,10 @@ import "protos/kv.proto";
 
 service ShardRPC {
     rpc Get(GetRequest) returns (GetResponse) {}
-    rpc Put(PutRequest) returns (PutResponse) {}
+    rpc Put(InternalPutRequest) returns (PutResponse) {}
     rpc Delete(DeleteRequest) returns (DeleteResponse) {}
     rpc PauseWrites(PauseWritesRequest) returns (PauseWritesResponse) {}
-    rpc SendKeys(SendKeysRequest) returns (SendKeysResponse) {}
-    rpc PurgeKeys(PurgeKeysRequest) returns (PurgeKeysResponse) {}
+    rpc RedistributeKeys(RedistributeKeysRequest) returns (RedistributeKeysResponse) {}
     rpc ResumeWrites(ResumeWritesRequest) returns (ResumeWritesResponse) {}
 }
 
@@ -21,21 +20,18 @@ message PauseWritesResponse {
     bool is_paused = 1;
 }
 
-message SendKeysRequest {}
-message SendKeysResponse {
-    bool is_sending = 1;
-    int32 keys_sent = 2;
-    int32 total_keys = 3;
-}
-
-message PurgeKeysRequest {}
-message PurgeKeysResponse {
-    bool is_purging = 1;
-    int32 keys_purged = 2;
-    int32 total_keys = 3;
+message RedistributeKeysRequest {}
+message RedistributeKeysResponse {
+    int32 pending_keys = 1;
 }
 
 message ResumeWritesRequest {}
 message ResumeWritesResponse {
     bool is_resumed = 1;
+}
+
+message InternalPutRequest {
+    string key = 1;
+    string value = 2;
+    bool is_redistribution = 3;
 }

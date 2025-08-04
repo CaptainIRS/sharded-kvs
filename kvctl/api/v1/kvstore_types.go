@@ -53,27 +53,22 @@ type KVStoreSpec struct {
 type RedistributionPhase string
 
 const (
-	PhaseNormal          RedistributionPhase = ""
-	PhasePreparingScale  RedistributionPhase = "PreparingScale"
-	PhaseStoppingWrites  RedistributionPhase = "StoppingWrites"
-	PhaseSendingKeys     RedistributionPhase = "SendingKeys"
-	PhasePurgingKeys     RedistributionPhase = "PurgingKeys"
-	PhaseResumingWrites  RedistributionPhase = "ResumingWrites"
-	PhaseFinalizingScale RedistributionPhase = "FinalizingScale"
-	PhaseScaleComplete   RedistributionPhase = "ScaleComplete"
+	PhaseNormal             RedistributionPhase = ""
+	PhasePreparingScale     RedistributionPhase = "PreparingScale"
+	PhaseStoppingWrites     RedistributionPhase = "StoppingWrites"
+	PhaseRedistributingKeys RedistributionPhase = "RedistributingKeys"
+	PhaseResumingWrites     RedistributionPhase = "ResumingWrites"
+	PhaseFinalizingScale    RedistributionPhase = "FinalizingScale"
+	PhaseScaleComplete      RedistributionPhase = "ScaleComplete"
 )
 
 // KVStoreStatus defines the observed state of KVStore.
 type KVStoreStatus struct {
-	Phase                RedistributionPhase `json:"phase,omitempty"`
-	CurrentShards        int                 `json:"currentShards"`
-	TargetShards         int                 `json:"targetShards,omitempty"`
-	ShardsStoppedWrites  []int               `json:"shardsStoppedWrites,omitempty"`
-	ShardsCompletedSend  []int               `json:"shardsCompletedSend,omitempty"`
-	ShardsCompletedPurge []int               `json:"shardsCompletedPurge,omitempty"`
-	ShardsResumedWrites  []int               `json:"shardsResumedWrites,omitempty"`
-	Message              string              `json:"message,omitempty"`
-	LastTransition       metav1.Time         `json:"lastTransition,omitempty"`
+	Phase          RedistributionPhase `json:"phase,omitempty"`
+	CurrentShards  int                 `json:"currentShards"`
+	TargetShards   int                 `json:"targetShards,omitempty"`
+	Message        string              `json:"message,omitempty"`
+	LastTransition metav1.Time         `json:"lastTransition,omitempty"`
 }
 
 // +kubebuilder:object:root=true

@@ -3682,22 +3682,6 @@ spec:
                 type: string
               phase:
                 type: string
-              shardsCompletedPurge:
-                items:
-                  type: integer
-                type: array
-              shardsCompletedSend:
-                items:
-                  type: integer
-                type: array
-              shardsResumedWrites:
-                items:
-                  type: integer
-                type: array
-              shardsStoppedWrites:
-                items:
-                  type: integer
-                type: array
               targetShards:
                 type: integer
             required:

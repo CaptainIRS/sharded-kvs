@@ -47,33 +47,31 @@ func (h hasher) Sum64(data []byte) uint64 {
 	return xxhash.Sum64(data)
 }
 
+type ErrWritesDisabled struct {}
+
+func (e ErrWritesDisabled) Error() string {
+	return "Writes disabled. Please try again later."
+}
+
 var (
-	address            = flag.String("address", "localhost", "This shard's IP address")
-	kvPort             = flag.Int("port", 8080, "The key-value server port")
-	shardPort          = flag.Int("shardPort", 8081, "The shard RPC server port")
-	raftPort           = flag.Int("raftPort", 8082, "The Raft RPC server port")
-	replicaPort        = flag.Int("replicaPort", 8083, "The leader RPC server port")
-	shard              = flag.String("shard", "shard-0", "Shard ID")
-	replica            = flag.String("replica", "shard-0-replica-0", "Replica ID")
-	folder             = flag.String("folder", "/data", "Folder to store data")
-	configFile         = flag.String("configFile", "/etc/config/config.yaml", "Path of the KV Store configuration file")
-	shouldBootstrap    = flag.Bool("shouldBootstrap", false, "Should this replica bootstrap Raft?")
-	ch                 = consistent.Consistent{}
-	shardClients       = make(map[string]pb.ShardRPCClient)
-	replicaClients     = make(map[string]pb.ReplicaRPCClient)
-	kvStore            *kvstore.KVStore
-	isRestart          bool
-	writesEnabled      = true
-	writesEnabledMutex = sync.Mutex{}
-	sendingKeys        = false
-	sendingKeysMutex   = sync.Mutex{}
-	keysToBeSent       = 0
-	keysSent           = 0
-	purgingKeys        = false
-	purgingKeysMutex   = sync.Mutex{}
-	keysToBePurged     = 0
-	keysPurged         = 0
-	consistentHashCfg  = consistent.Config{
+	address                 = flag.String("address", "localhost", "This shard's IP address")
+	kvPort                  = flag.Int("port", 8080, "The key-value server port")
+	shardPort               = flag.Int("shardPort", 8081, "The shard RPC server port")
+	raftPort                = flag.Int("raftPort", 8082, "The Raft RPC server port")
+	replicaPort             = flag.Int("replicaPort", 8083, "The leader RPC server port")
+	shard                   = flag.String("shard", "shard-0", "Shard ID")
+	replica                 = flag.String("replica", "shard-0-replica-0", "Replica ID")
+	folder                  = flag.String("folder", "/data", "Folder to store data")
+	configFile              = flag.String("configFile", "/etc/config/config.yaml", "Path of the KV Store configuration file")
+	shouldBootstrap         = flag.Bool("shouldBootstrap", false, "Should this replica bootstrap Raft?")
+	ch                      = consistent.Consistent{}
+	shardClients            = make(map[string]pb.ShardRPCClient)
+	replicaClients          = make(map[string]pb.ReplicaRPCClient)
+	kvStore                 *kvstore.KVStore
+	isRestart               bool
+	redistributingKeys      = false
+	redistributingKeysMutex = sync.Mutex{}
+	consistentHashCfg       = consistent.Config{
 		PartitionCount:    consistent.DefaultPartitionCount,
 		ReplicationFactor: consistent.DefaultReplicationFactor,
 		Load:              consistent.DefaultLoad,
@@ -94,7 +92,7 @@ func (s *kvServer) Put(ctx context.Context, in *pb.PutRequest) (*pb.PutResponse,
 	member := ch.LocateKey([]byte(key))
 	shardclient := shardClients[member.String()]
 	log.Printf("Forwarding put request for key %s to %s", key, member)
-	return shardclient.Put(ctx, &pb.PutRequest{Key: key, Value: in.Value})
+	return shardclient.Put(ctx, &pb.InternalPutRequest{Key: key, Value: in.Value, IsRedistribution: false})
 }
 
 func (s *kvServer) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.DeleteResponse, error) {
@@ -105,165 +103,65 @@ func (s *kvServer) Delete(ctx context.Context, in *pb.DeleteRequest) (*pb.Delete
 	return shardclient.Delete(ctx, &pb.DeleteRequest{Key: key})
 }
 
-type RedistributionPhase string
-
-const (
-	PhaseNormal          RedistributionPhase = ""
-	PhasePreparingScale  RedistributionPhase = "PreparingScale"
-	PhaseStoppingWrites  RedistributionPhase = "StoppingWrites"
-	PhaseSendingKeys     RedistributionPhase = "SendingKeys"
-	PhasePurgingKeys     RedistributionPhase = "PurgingKeys"
-	PhaseResumingWrites  RedistributionPhase = "ResumingWrites"
-	PhaseFinalizingScale RedistributionPhase = "FinalizingScale"
-	PhaseScaleComplete   RedistributionPhase = "ScaleComplete"
-)
-
-func PauseWrites() {
-	writesEnabledMutex.Lock()
-	defer writesEnabledMutex.Unlock()
-	if writesEnabled {
-		if currentSnapshot, err := kvStore.Snapshot(); err != nil {
-			log.Printf("Failed to snapshot: %s", err)
-		} else {
-			log.Println("Current snapshot:")
-			for k, v := range currentSnapshot {
-				log.Printf("key: %s, value: %s", k, v)
-			}
+func ReadConfig() (kvConfig KVStoreConfig) {
+	if buf, err := os.ReadFile(*configFile); err != nil {
+		log.Fatalf("Unable to read config file at %s", *configFile)
+		panic(err)
+	} else {
+		if err := yaml.Unmarshal(buf, &kvConfig); err != nil {
+			log.Fatalf("Unable to parse config file at %s", *configFile)
+			panic(err)
 		}
-		writesEnabled = false
 	}
+	return kvConfig
 }
 
-func ResumeWrites() {
-	writesEnabledMutex.Lock()
-	defer writesEnabledMutex.Unlock()
-	writesEnabled = true
-}
-
-func SendKeys() {
-	sendingKeysMutex.Lock()
-	defer sendingKeysMutex.Unlock()
-	if sendingKeys {
+func RedistributeKeys() {
+	redistributingKeysMutex.Lock()
+	if redistributingKeys {
+		redistributingKeysMutex.Unlock()
 		return
 	}
-	if currentSnapshot, err := kvStore.Snapshot(); err != nil {
-		log.Printf("Failed to snapshot: %s", err)
-	} else {
-		kvConfig := KVStoreConfig{}
-		if buf, err := os.ReadFile(*configFile); err != nil {
-			log.Fatalf("Unable to read config file at %s", *configFile)
-			panic(err)
-		} else {
-			if err := yaml.Unmarshal(buf, &kvConfig); err != nil {
-				log.Fatalf("Unable to parse config file at %s", *configFile)
-				panic(err)
-			}
-		}
-		if len(kvConfig.NewShards) == len(kvConfig.Shards) || len(kvConfig.NewShards) == 0 {
-			log.Println("len(newShards) == len(shards)?? We have to wait for configmap update to be reflected here")
-			return
-		}
-		PopulateShardClients(kvConfig.NewShards)
-		newMembers := []consistent.Member{}
-		for _, shard := range kvConfig.NewShards {
-			newMembers = append(newMembers, Member(shard.Name))
-		}
-		newCh := *consistent.New(newMembers, consistentHashCfg)
-		relocatedKeys := make([]string, 0)
-		relocatedValues := make([]string, 0)
-		locations := make([]string, 0)
-		for k, v := range currentSnapshot {
-			if newCh.LocateKey([]byte(k)).String() != ch.LocateKey([]byte(k)).String() {
-				if ch.LocateKey([]byte(k)).String() == *shard {
-					log.Printf("Key: %s, Old location: %s, New location: %s", k, ch.LocateKey([]byte(k)).String(), newCh.LocateKey([]byte(k)).String())
-					relocatedKeys = append(relocatedKeys, k)
-					relocatedValues = append(relocatedValues, v)
-					locations = append(locations, newCh.LocateKey([]byte(k)).String())
+	redistributingKeys = true
+	redistributingKeysMutex.Unlock()
+	defer func() {
+		redistributingKeysMutex.Lock()
+		redistributingKeys = false
+		redistributingKeysMutex.Unlock()
+	}()
+
+	kvConfig := ReadConfig()
+	if len(kvConfig.NewShards) == 0 {
+		log.Println("Waiting for new configuration...")
+		return
+	}
+	PopulateShardClients(kvConfig.NewShards)
+	newMembers := []consistent.Member{}
+	for _, shard := range kvConfig.NewShards {
+		newMembers = append(newMembers, Member(shard.Name))
+	}
+	newCh := *consistent.New(newMembers, consistentHashCfg)
+	for key := range kvStore.Keys() {
+		oldLocation := ch.LocateKey([]byte(key)).String()
+		newLocation := newCh.LocateKey([]byte(key)).String()
+
+		if oldLocation != newLocation {
+			if oldLocation == *shard {
+				log.Printf("Key: %s, Old location: %s, New location: %s", key, oldLocation, newLocation)
+				if value, err := kvStore.Get(key); err != nil {
+					log.Printf("Error when getting key %s for relocation: %s", key, err)
+				} else {
+					targetClient := shardClients[newLocation]
+					if _, err := targetClient.Put(context.Background(), &pb.InternalPutRequest{Key: key, Value: value, IsRedistribution: true}); err != nil {
+						log.Printf("Error when sending key %s to %s: %s", key, newLocation, err)
+					} else {
+						if err := kvStore.Delete(key); err != nil {
+							log.Printf("Error when purging key %s: %s", key, err)
+						}
+					}
 				}
 			}
 		}
-		keysSent = 0
-		keysToBeSent = len(relocatedKeys)
-		sendingKeys = true
-		go SendKeysInBackground(relocatedKeys, relocatedValues, locations)
-	}
-}
-
-func SendKeysInBackground(relocatedKeys, relocatedValues, locations []string) {
-	for i, key := range relocatedKeys {
-		target := locations[i]
-		value := relocatedValues[i]
-		targetClient := shardClients[target]
-		if _, err := targetClient.Put(context.Background(), &pb.PutRequest{Key: key, Value: value}); err != nil {
-			log.Printf("Error sending %s:%s to %s: %s", key, value, target, err)
-			continue
-		} else {
-			log.Printf("Sent %s:%s to %s", key, value, target)
-			keysSent++
-		}
-	}
-	if keysSent != keysToBeSent {
-		log.Printf("Encountered some errors when sending keys, retrying...")
-		keysSent = 0
-		go SendKeysInBackground(relocatedKeys, relocatedValues, locations)
-	}
-}
-
-func PurgeKeys() {
-	purgingKeysMutex.Lock()
-	defer purgingKeysMutex.Unlock()
-	if purgingKeys {
-		return
-	}
-	if currentSnapshot, err := kvStore.Snapshot(); err != nil {
-		log.Printf("Failed to snapshot: %s", err)
-	} else {
-		kvConfig := KVStoreConfig{}
-		if buf, err := os.ReadFile(*configFile); err != nil {
-			log.Fatalf("Unable to read config file at %s", *configFile)
-			panic(err)
-		} else {
-			log.Print(string(buf))
-			if err := yaml.Unmarshal(buf, &kvConfig); err != nil {
-				log.Fatalf("Unable to parse config file at %s", *configFile)
-				panic(err)
-			}
-		}
-		newMembers := []consistent.Member{}
-		for _, shard := range kvConfig.NewShards {
-			newMembers = append(newMembers, Member(shard.Name))
-		}
-		ch = *consistent.New(newMembers, consistentHashCfg)
-		relocatedKeys := make([]string, 0)
-		for k := range currentSnapshot {
-			if ch.LocateKey([]byte(k)).String() != *shard {
-				relocatedKeys = append(relocatedKeys, k)
-			}
-		}
-		keysPurged = 0
-		keysToBePurged = len(relocatedKeys)
-		purgingKeys = true
-		go PurgeKeysInBackground(relocatedKeys)
-	}
-}
-
-func PurgeKeysInBackground(relocatedKeys []string) {
-	for _, k := range relocatedKeys {
-		if err := kvStore.Delete(k); err != nil {
-			if _, ok := err.(*kvstore.KeyNotFound); ok {
-				log.Printf("Already purged key %s", k)
-				keysPurged++
-			}
-			log.Printf("Cannot purge key %s: %s", k, err)
-		} else {
-			log.Printf("Purged key %s", k)
-			keysPurged++
-		}
-	}
-	if keysPurged != keysToBePurged {
-		log.Println("Encountered some errors when purging keys. Retrying...")
-		keysPurged = 0
-		go PurgeKeysInBackground(relocatedKeys)
 	}
 }
 
@@ -276,7 +174,7 @@ func (s *shardRpcServer) Get(ctx context.Context, in *pb.GetRequest) (*pb.GetRes
 	}
 }
 
-func (s *shardRpcServer) Put(ctx context.Context, in *pb.PutRequest) (*pb.PutResponse, error) {
+func (s *shardRpcServer) Put(ctx context.Context, in *pb.InternalPutRequest) (*pb.PutResponse, error) {
 	if err := kvStore.Set(in.Key, in.Value); err == raft.ErrNotLeader {
 		leader := kvStore.Leader()
 		if leader == "" {
@@ -317,22 +215,15 @@ func (s *shardRpcServer) PauseWrites(ctx context.Context, in *pb.PauseWritesRequ
 	}
 }
 
-func (s *shardRpcServer) SendKeys(ctx context.Context, in *pb.SendKeysRequest) (*pb.SendKeysResponse, error) {
+func (s *shardRpcServer) RedistributeKeys(ctx context.Context, in *pb.RedistributeKeysRequest) (*pb.RedistributeKeysResponse, error) {
 	leader := kvStore.Leader()
 	if leader == "" {
 		return nil, fmt.Errorf("no leader found")
 	} else {
-		return replicaClients[leader].SendKeys(ctx, in)
+		return replicaClients[leader].RedistributeKeys(ctx, in)
 	}
 }
-func (s *shardRpcServer) PurgeKeys(ctx context.Context, in *pb.PurgeKeysRequest) (*pb.PurgeKeysResponse, error) {
-	leader := kvStore.Leader()
-	if leader == "" {
-		return nil, fmt.Errorf("no leader found")
-	} else {
-		return replicaClients[leader].PurgeKeys(ctx, in)
-	}
-}
+
 func (s *shardRpcServer) ResumeWrites(ctx context.Context, in *pb.ResumeWritesRequest) (*pb.ResumeWritesResponse, error) {
 	leader := kvStore.Leader()
 	if leader == "" {
@@ -347,8 +238,11 @@ func (s *shardRpcServer) ResumeWrites(ctx context.Context, in *pb.ResumeWritesRe
 	}
 }
 
-func (s *replicaRpcServer) Put(ctx context.Context, in *pb.PutRequest) (*pb.PutResponse, error) {
+func (s *replicaRpcServer) Put(ctx context.Context, in *pb.InternalPutRequest) (*pb.PutResponse, error) {
 	log.Printf("Received put request for key %s", in.Key)
+	if !in.IsRedistribution && !kvStore.GetWritesEnabled() {
+		return nil, ErrWritesDisabled{}
+	}
 	if err := kvStore.Set(in.Key, in.Value); err != nil {
 		return nil, err
 	} else {
@@ -366,50 +260,82 @@ func (s *replicaRpcServer) Delete(ctx context.Context, in *pb.DeleteRequest) (*p
 }
 
 func (s *replicaRpcServer) PauseWrites(ctx context.Context, in *pb.PauseWritesRequest) (*pb.PauseWritesResponse, error) {
-	go PauseWrites()
-	writesEnabledMutex.Lock()
-	defer writesEnabledMutex.Unlock()
-	return &pb.PauseWritesResponse{
-		IsPaused: !writesEnabled,
-	}, nil
+	kvConfig := ReadConfig()
+	if len(kvConfig.NewShards) == 0 {
+		log.Println("Waiting for new configuration...")
+		return &pb.PauseWritesResponse{
+			IsPaused: false,
+		}, nil
+	}
+	if err := kvStore.SetWritesEnabled(false); err != nil {
+		log.Printf("Could not disable writes: %s", err)
+		return nil, err
+	} else {
+		log.Println("Writes disabled successfully")
+		return &pb.PauseWritesResponse{
+			IsPaused: true,
+		}, nil
+	}
 }
 
-func (s *replicaRpcServer) SendKeys(ctx context.Context, in *pb.SendKeysRequest) (*pb.SendKeysResponse, error) {
-	go SendKeys()
-	sendingKeysMutex.Lock()
-	defer sendingKeysMutex.Unlock()
-	log.Printf("IsSending: %t, KeysSent: %d, KeysToBeSent: %d", sendingKeys, keysSent, keysToBeSent)
-	return &pb.SendKeysResponse{
-		IsSending: sendingKeys,
-		KeysSent:  int32(keysSent),
-		TotalKeys: int32(keysToBeSent),
-	}, nil
-}
+func (s *replicaRpcServer) RedistributeKeys(ctx context.Context, in *pb.RedistributeKeysRequest) (*pb.RedistributeKeysResponse, error) {
+	go RedistributeKeys()
 
-func (s *replicaRpcServer) PurgeKeys(ctx context.Context, in *pb.PurgeKeysRequest) (*pb.PurgeKeysResponse, error) {
-	sendingKeys = false
-	keysSent = 0
-	keysToBeSent = 0
-	go PurgeKeys()
-	purgingKeysMutex.Lock()
-	defer purgingKeysMutex.Unlock()
-	return &pb.PurgeKeysResponse{
-		IsPurging:  purgingKeys,
-		KeysPurged: int32(keysPurged),
-		TotalKeys:  int32(keysToBePurged),
+	kvConfig := ReadConfig()
+	newMembers := []consistent.Member{}
+	for _, shard := range kvConfig.NewShards {
+		newMembers = append(newMembers, Member(shard.Name))
+	}
+	newCh := *consistent.New(newMembers, consistentHashCfg)
+	pendingKeys := 0
+	for key := range kvStore.Keys() {
+		oldLocation := ch.LocateKey([]byte(key)).String()
+		newLocation := newCh.LocateKey([]byte(key)).String()
+		if oldLocation != newLocation && oldLocation == *shard {
+			pendingKeys++
+		}
+	}
+	log.Printf("Pending keys to be redistributed: %d", pendingKeys)
+	return &pb.RedistributeKeysResponse{
+		PendingKeys: int32(pendingKeys),
 	}, nil
 }
 
 func (s *replicaRpcServer) ResumeWrites(ctx context.Context, in *pb.ResumeWritesRequest) (*pb.ResumeWritesResponse, error) {
-	purgingKeys = false
-	keysPurged = 0
-	keysToBePurged = 0
-	go ResumeWrites()
-	writesEnabledMutex.Lock()
-	defer writesEnabledMutex.Unlock()
-	return &pb.ResumeWritesResponse{
-		IsResumed: writesEnabled,
-	}, nil
+	kvConfig := ReadConfig()
+	if len(kvConfig.NewShards) != 0 {
+		return &pb.ResumeWritesResponse{
+			IsResumed: false,
+		}, nil
+	}
+	reloadSuccessful := true
+	for replica, replicaClient := range replicaClients {
+		if res, err := replicaClient.ReloadConfig(ctx, &pb.ReloadConfigRequest{}); err != nil {
+			log.Printf("Could not reload config for %s: %s", replica, err)
+			return &pb.ResumeWritesResponse{
+				IsResumed: false,
+			}, nil
+		} else {
+			if !res.ReloadSuccessful {
+				log.Printf("Waiting for %s to reload config", replica)
+				reloadSuccessful = false
+			}
+		}
+	}
+	if !reloadSuccessful {
+		return &pb.ResumeWritesResponse{
+			IsResumed: reloadSuccessful,
+		}, nil
+	}
+	if err := kvStore.SetWritesEnabled(true); err != nil {
+		log.Printf("Could not enable writes: %s", err)
+		return nil, err
+	} else {
+		log.Println("Writes resumed successfully")
+		return &pb.ResumeWritesResponse{
+			IsResumed: true,
+		}, nil
+	}
 }
 
 func (s *replicaRpcServer) Join(ctx context.Context, in *pb.JoinRequest) (*pb.JoinResponse, error) {
@@ -438,24 +364,19 @@ func (s *replicaRpcServer) DemoteVoter(ctx context.Context, in *pb.DemoteVoterRe
 	}
 }
 
-func ReloadConfig() {
-	log.Printf("Reloading config")
+func ReloadConfig() bool {
 	kvConfig := KVStoreConfig{}
-	for {
-		if buf, err := os.ReadFile(*configFile); err != nil {
-			log.Fatalf("Unable to read config file at %s", *configFile)
+	if buf, err := os.ReadFile(*configFile); err != nil {
+		log.Fatalf("Unable to read config file at %s", *configFile)
+		panic(err)
+	} else {
+		kvConfig = KVStoreConfig{}
+		if err := yaml.Unmarshal(buf, &kvConfig); err != nil {
+			log.Fatalf("Unable to parse config file at %s", *configFile)
 			panic(err)
-		} else {
-			kvConfig = KVStoreConfig{}
-			if err := yaml.Unmarshal(buf, &kvConfig); err != nil {
-				log.Fatalf("Unable to parse config file at %s", *configFile)
-				panic(err)
-			}
-			if len(kvConfig.NewShards) == 0 {
-				break
-			}
-			log.Println("Waiting for updated config...")
-			time.Sleep(1 * time.Second)
+		}
+		if len(kvConfig.NewShards) != 0 {
+			return false
 		}
 	}
 	members := []consistent.Member{}
@@ -464,13 +385,15 @@ func ReloadConfig() {
 	}
 	ch = *consistent.New(members, consistentHashCfg)
 
-	go PopulateShardClients(kvConfig.Shards)
-	go PopulateReplicaClients(context.Background(), kvConfig)
+	PopulateShardClients(kvConfig.Shards)
+	return true
 
 }
 func (s *replicaRpcServer) ReloadConfig(ctx context.Context, in *pb.ReloadConfigRequest) (*pb.ReloadConfigResponse, error) {
-	go ReloadConfig()
-	return &pb.ReloadConfigResponse{}, nil
+	reloadSuccessful := ReloadConfig()
+	return &pb.ReloadConfigResponse{
+		ReloadSuccessful: reloadSuccessful,
+	}, nil
 }
 
 type KVStoreShard struct {
@@ -479,8 +402,8 @@ type KVStoreShard struct {
 }
 
 type KVStoreConfig struct {
-	Shards    []KVStoreShard      `yaml:"shards"`
-	NewShards []KVStoreShard      `yaml:"newShards,omitempty"`
+	Shards    []KVStoreShard `yaml:"shards"`
+	NewShards []KVStoreShard `yaml:"newShards,omitempty"`
 }
 
 func PopulateShardClients(shards []KVStoreShard) {

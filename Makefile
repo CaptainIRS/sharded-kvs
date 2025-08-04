@@ -53,6 +53,7 @@ build_images: .deployment/kind_start
 	@echo "$(BLUE)Creating kind cluster...$(CLEAR)"
 	kind create cluster --config deploy/kind/cluster.yaml
 	kubectl apply -f deploy/kind/deploy-ingress-nginx.yaml
+	kubectl apply -f deploy/kind/deploy-cert-manager.yaml
 	@echo "$(BLUE)Creating kind cluster...done$(CLEAR)"
 	touch .deployment/kind_start
 

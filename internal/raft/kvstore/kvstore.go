@@ -3,7 +3,9 @@ package kvstore
 import (
 	"fmt"
 	"io"
+	"iter"
 	"log"
+	"maps"
 	"sync"
 	"time"
 
@@ -16,14 +18,17 @@ import (
 const (
 	SET = iota
 	DELETE
+	TOGGLE
 )
 
 type KVStore struct {
-	raft      *raft.Raft
-	snapshots *raft.FileSnapshotStore
+	raft              *raft.Raft
+	snapshots         *raft.FileSnapshotStore
+	lastSnapshotIndex uint64
 
-	mutex sync.Mutex
-	store *map[string]string
+	mutex         sync.Mutex
+	store         *map[string]string
+	writesEnabled bool
 }
 
 func NewKVStore() *KVStore {
@@ -45,6 +50,35 @@ func (k *KVStore) Get(key string) (string, error) {
 	return "", KeyNotFound{}
 }
 
+func (k *KVStore) Keys() iter.Seq[string] {
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
+	return maps.Keys(*k.store)
+}
+
+func (k *KVStore) GetWritesEnabled() bool {
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
+	return k.writesEnabled
+}
+
+func (k *KVStore) SetWritesEnabled(writesEnabled bool) error {
+	k.mutex.Lock()
+	defer k.mutex.Unlock()
+	if k.writesEnabled == writesEnabled {
+		return nil
+	}
+	log.Printf("Setting writes enabled to %t", writesEnabled)
+	if newEntry, err := proto.Marshal(&pb.KVFSMLogEntry{
+		Operation:     TOGGLE,
+		WritesEnabled: &writesEnabled,
+	}); err != nil {
+		return err
+	} else {
+		return k.raft.Apply(newEntry, 10*time.Second).Error()
+	}
+}
+
 func (k *KVStore) Set(key, value string) error {
 	if k.raft.State() != raft.Leader {
 		return raft.ErrNotLeader
@@ -52,7 +86,7 @@ func (k *KVStore) Set(key, value string) error {
 	log.Printf("Setting key %s to value %s", key, value)
 	newEntry, err := proto.Marshal(&pb.KVFSMLogEntry{
 		Operation: SET,
-		Key:       key,
+		Key:       &key,
 		Value:     &value,
 	})
 	if err != nil {
@@ -69,7 +103,7 @@ func (k *KVStore) Delete(key string) error {
 	log.Printf("Deleting key %s", key)
 	newEntry, err := proto.Marshal(&pb.KVFSMLogEntry{
 		Operation: DELETE,
-		Key:       key,
+		Key:       &key,
 	})
 	if err != nil {
 		return err
@@ -99,7 +133,7 @@ func (k *KVStore) Snapshot() (map[string]string, error) {
 		}
 		return make(map[string]string), fmt.Errorf("could not perform snapshot: %s", future.Error())
 	} else {
-		if _, readCloser, err := future.Open(); err != nil {
+		if meta, readCloser, err := future.Open(); err != nil {
 			return make(map[string]string), fmt.Errorf("could not open snapshot: %s", future.Error())
 		} else {
 			if bytes, err := io.ReadAll(readCloser); err != nil {
@@ -109,6 +143,7 @@ func (k *KVStore) Snapshot() (map[string]string, error) {
 				if err := proto.Unmarshal(bytes, &kvFsmSnapshot); err != nil {
 					return make(map[string]string), fmt.Errorf("could not parse snapshot: %s", future.Error())
 				}
+				k.lastSnapshotIndex = meta.Index
 				return kvFsmSnapshot.KvStore, nil
 			}
 		}
@@ -164,12 +199,14 @@ func (k *KVStore) Leader() string {
 }
 
 type fsmSnapshot struct {
-	store map[string]string
+	store         map[string]string
+	writesEnabled bool
 }
 
 func (fs *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
 	storeBytes, err := proto.Marshal(&pb.KVFSMSnapshot{
-		KvStore: fs.store,
+		KvStore:       fs.store,
+		WritesEnabled: fs.writesEnabled,
 	})
 	if err != nil {
 		sink.Cancel()
@@ -188,7 +225,8 @@ type KVFsm KVStore
 
 func NewKVFsm(store *map[string]string) *KVFsm {
 	return &KVFsm{
-		store: store,
+		store:         store,
+		writesEnabled: true,
 	}
 }
 
@@ -202,16 +240,18 @@ func (f *KVFsm) Apply(raftLog *raft.Log) interface{} {
 	defer f.mutex.Unlock()
 	switch entry.Operation {
 	case SET:
-		(*f.store)[entry.Key] = *entry.Value
-		log.Printf("Key: %s, Value: %s", entry.Key, (*f.store)[entry.Key])
+		(*f.store)[entry.GetKey()] = entry.GetValue()
+		log.Printf("Key: %s, Value: %s", entry.GetKey(), (*f.store)[entry.GetKey()])
 	case DELETE:
-		delete(*f.store, entry.Key)
+		delete(*f.store, entry.GetKey())
+	case TOGGLE:
+		f.writesEnabled = entry.GetWritesEnabled()
 	}
 	return nil
 }
 
 func (f *KVFsm) Snapshot() (raft.FSMSnapshot, error) {
-	return &fsmSnapshot{store: *f.store}, nil
+	return &fsmSnapshot{store: *f.store, writesEnabled: f.writesEnabled}, nil
 }
 
 func (f *KVFsm) Restore(snapshot io.ReadCloser) error {
